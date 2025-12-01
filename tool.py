@@ -5,6 +5,8 @@ import ipaddress
 import socket
 import re
 import uuid
+import threading
+
 
 class AttackGUI:
     def __init__(self, root):
@@ -15,10 +17,6 @@ class AttackGUI:
         tk.Label(root, text="Victim IP: (optional)").grid(row=0, column=0, sticky="e", padx=5, pady=5)
         self.victim_entry = tk.Entry(root, width=25)
         self.victim_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        tk.Label(root, text="Server IP: (optional)").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-        self.server_entry = tk.Entry(root, width=25)
-        self.server_entry.grid(row=1, column=1, padx=5, pady=5)
 
         # Attack Selection
         tk.Label(root, text="Select Attack:").grid(row=2, column=0, sticky="e", padx=5, pady=5)
@@ -63,10 +61,12 @@ class AttackGUI:
         # Initially show ARP options since default is ARP
         self.update_attack_options()
 
-    # Logging
+    # Thread-safe Logging
     def log(self, text):
-        self.log_area.insert(tk.END, text + "\n")
-        self.log_area.see(tk.END)
+        self.root.after(0, lambda: (
+            self.log_area.insert(tk.END, text + "\n"),
+            self.log_area.see(tk.END)
+        ))
 
     # IP validation
     def is_valid_ip(self, ip):
@@ -88,14 +88,9 @@ class AttackGUI:
 
     def validate_inputs(self):
         victim = self.victim_entry.get().strip()
-        server = self.server_entry.get().strip()
 
         if not self.is_valid_ip(victim):
             self.log(f"ERROR: Invalid victim IP '{victim}'.")
-            return False
-
-        if not self.is_valid_ip(server):
-            self.log(f"ERROR: Invalid server IP '{server}'.")
             return False
 
         if self.attack_choice.get() == "ARP Poisoning":
@@ -130,34 +125,36 @@ class AttackGUI:
             return
 
         victim = self.get_ip_or_none(self.victim_entry.get())
-        server = self.get_ip_or_none(self.server_entry.get())
         attack = self.attack_choice.get()
 
-        if attack == "ARP Poisoning":
-            mode = self.arp_mode.get()
-            spoof_mac = self.spoof_entry.get().strip()
+        # Worker thread for running attacks
+        def worker():
+            if attack == "ARP Poisoning":
+                mode = self.arp_mode.get()
+                spoof_mac = self.spoof_entry.get().strip()
 
-            self.log(f"Starting ARP poisoning:")
-            self.log(f"  Victim:    {victim}")
-            self.log(f"  Server:    {server}")
-            self.log(f"  Mode:      {mode}")
-            self.log(f"  Spoof As:  {spoof_mac}")
+                self.log("Starting ARP poisoning:")
+                self.log(f"  Victim:    {victim}")
+                self.log(f"  Mode:      {mode}")
+                self.log(f"  Spoof As:  {spoof_mac}")
 
-            Arp_poisening.arp_poisoning(
-                victim,
-                server,
-                mode=mode,
-                spoof_as_mac=spoof_mac,
-                logger=self.log
-            )
+                Arp_poisening.arp_poisoning(
+                    victim,
+                    spoof_as_mac=spoof_mac,
+                    mode=mode,
+                    logger=self.log
+                )
 
-        elif attack == "DNS Spoofing":
-            self.log(f"Starting DNS spoofing: Victim={victim}")
-            # call DNS spoofing
+            elif attack == "DNS Spoofing":
+                self.log(f"Starting DNS spoofing: Victim={victim}")
+                # call DNS spoofing
 
-        elif attack == "MITM (With SSL stripping)":
-            self.log(f"Starting SSL stripping: Victim={victim}, Server={server}")
-            # call SSL stripping
+            elif attack == "MITM (With SSL stripping)":
+                self.log(f"Starting SSL stripping: Victim={victim}")
+                # call SSL stripping
+
+        # Start thread
+        threading.Thread(target=worker, daemon=True).start()
 
 
 if __name__ == "__main__":
