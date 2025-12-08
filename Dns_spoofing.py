@@ -2,7 +2,7 @@ import scapy.all as sc;
 import time;
 import ipaddress;
 
-def dns_spoofing(victim_ip, server_ip, mode):
+def dns_spoofing(victim_ip):
     iface = ""
 
     try:

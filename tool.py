@@ -7,6 +7,8 @@ import re
 import uuid
 import threading
 
+import Dns_spoofing
+
 
 class AttackGUI:
     def __init__(self, root):
@@ -148,6 +150,9 @@ class AttackGUI:
             elif attack == "DNS Spoofing":
                 self.log(f"Starting DNS spoofing: Victim={victim}")
                 # call DNS spoofing
+                Dns_spoofing.dns_spoofing(
+                    victim
+                )
 
             elif attack == "MITM (With SSL stripping)":
                 self.log(f"Starting SSL stripping: Victim={victim}")
