@@ -151,7 +151,8 @@ class AttackGUI:
                 self.log(f"Starting DNS spoofing: Victim={victim}")
                 # call DNS spoofing
                 Dns_spoofing.dns_spoofing(
-                    victim
+                    victim,
+                    []
                 )
 
             elif attack == "MITM (With SSL stripping)":
