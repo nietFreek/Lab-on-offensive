@@ -138,7 +138,7 @@ class AttackGUI:
                 self.log(f"  Domain:   {domain}")
                 self.log(f"  Spoof IP: {spoof_ip}")
 
-                Dns_spoofing.dns_spoofing()
+                Dns_spoofing.dns_spoofing(domain, spoof_ip)
 
             # MITM
             else:
