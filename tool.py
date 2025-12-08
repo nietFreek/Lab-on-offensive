@@ -4,6 +4,8 @@ import Arp_poisening
 import uuid
 import threading
 
+import Dns_spoofing
+
 
 class AttackGUI:
     def __init__(self, root):
@@ -136,7 +138,7 @@ class AttackGUI:
                 self.log(f"  Domain:   {domain}")
                 self.log(f"  Spoof IP: {spoof_ip}")
 
-                # TODO: Call DNS spoofing implementation
+                Dns_spoofing.dns_spoofing()
 
             # MITM
             else:

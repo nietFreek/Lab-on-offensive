@@ -2,7 +2,7 @@ import scapy.all as sc;
 import time;
 import ipaddress;
 
-def dns_spoofing(victim_ip, server_ip, mode):
+def dns_spoofing(victim_ip, watched_domains):
     iface = ""
 
     try:
@@ -18,7 +18,7 @@ def dns_spoofing(victim_ip, server_ip, mode):
                 and p[sc.IP].src == victim_ip
         ))[0]
 
-        handle_dns_query(pkt, victim_ip, [])
+        handle_dns_query(pkt, victim_ip, watched_domains)
 
     except Exception as e:
         print(f"[!] Error during ARP poisoning: {e}")
