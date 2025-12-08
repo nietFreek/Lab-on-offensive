@@ -1,23 +1,17 @@
 import http.server
-import socketserver
+import ssl
 
-PORT = 80
+port = 443
+handler = http.server.SimpleHTTPRequestHandler
 
-class SimpleHandler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        html = """
-        <html>
-            <head><title>Website on a HTTP Server</title></head>
-        </html>
-        """
-        self.wfile.write(html.encode("utf-8"))
+httpd = http.server.HTTPServer(("0.0.0.0", port), handler)
 
-    def log_message(self, format, *args):
-        return  # Suppress logs
+# Modern replacement for wrap_socket
+context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+context.load_cert_chain(certfile="server.crt", keyfile="server.key")
 
-with socketserver.TCPServer(("", PORT), SimpleHandler) as httpd:
-    print(f"Serving HTTP on port {PORT}...")
-    httpd.serve_forever()
+httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
+
+print(f"Serving HTTPS on port {port}...")
+httpd.serve_forever()
+
