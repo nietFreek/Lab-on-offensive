@@ -3,7 +3,6 @@ from tkinter import scrolledtext, ttk
 import Arp_poisening
 import uuid
 import threading
-
 import Dns_spoofing
 
 
@@ -15,11 +14,11 @@ class AttackGUI:
         # ARP options
         self.arp_frame = tk.Frame(root)
 
-        tk.Label(self.arp_frame, text="Victim IP:").grid(row=0, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.arp_frame, text="Victim IP: (Optional)").grid(row=0, column=0, sticky="e", padx=5, pady=3)
         self.victim_entry = tk.Entry(self.arp_frame, width=23)
         self.victim_entry.grid(row=0, column=1, padx=5, pady=3)
 
-        tk.Label(self.arp_frame, text="Server IP:").grid(row=1, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.arp_frame, text="Server IP: (Optional)").grid(row=1, column=0, sticky="e", padx=5, pady=3)
         self.arp_server_entry = tk.Entry(self.arp_frame, width=23)
         self.arp_server_entry.grid(row=1, column=1, padx=5, pady=3)
 
@@ -61,6 +60,7 @@ class AttackGUI:
         self.mitm_server_entry.grid(row=1, column=1, padx=5, pady=3)
 
         self.ssl_var = tk.BooleanVar()
+        self.ssl_var = tk.BooleanVar(value=True)
         self.ssl_checkbox = tk.Checkbutton(
             self.mitm_frame, 
             text="Use SSL Stripping", 
