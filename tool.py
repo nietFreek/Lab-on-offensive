@@ -49,6 +49,25 @@ class AttackGUI:
         self.dns_spoof_ip_entry = tk.Entry(self.dns_frame, width=23)
         self.dns_spoof_ip_entry.grid(row=1, column=1, padx=5, pady=3)
 
+        # MITM options
+        self.mitm_frame = tk.Frame(root)
+
+        tk.Label(self.mitm_frame, text="Victim IP: (optional)").grid(row=0, column=0, sticky="e", padx=5, pady=3)
+        self.mitm_victim_entry = tk.Entry(self.mitm_frame, width=23)
+        self.mitm_victim_entry.grid(row=0, column=1, padx=5, pady=3)
+
+        tk.Label(self.mitm_frame, text="Server IP: (optional)").grid(row=1, column=0, sticky="e", padx=5, pady=3)
+        self.mitm_server_entry = tk.Entry(self.mitm_frame, width=23)
+        self.mitm_server_entry.grid(row=1, column=1, padx=5, pady=3)
+
+        self.ssl_var = tk.BooleanVar()
+        self.ssl_checkbox = tk.Checkbutton(
+            self.mitm_frame, 
+            text="Use SSL Stripping", 
+            variable=self.ssl_var
+        )
+        self.ssl_checkbox.grid(row=2, column=0, columnspan=2, padx=5, pady=3)
+
         # Attack options
         tk.Label(root, text="Select Attack:").grid(row=0, column=0, sticky="e", padx=5, pady=5)
         self.attack_choice = ttk.Combobox(
@@ -70,7 +89,6 @@ class AttackGUI:
         self.log_area = scrolledtext.ScrolledText(root, width=70, height=18)
         self.log_area.grid(row=4, column=0, columnspan=2, padx=5, pady=5)
 
-        # Show default
         self.update_attack_options()
 
     # Utility
@@ -87,10 +105,10 @@ class AttackGUI:
         except:
             return "00:00:00:00:00:00"
 
-    # UI Switching
     def update_attack_options(self, event=None):
         self.arp_frame.grid_forget()
         self.dns_frame.grid_forget()
+        self.mitm_frame.grid_forget()
 
         attack = self.attack_choice.get()
 
@@ -100,8 +118,8 @@ class AttackGUI:
         elif attack == "DNS Spoofing":
             self.dns_frame.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
-        else: 
-            pass  
+        else:
+            self.mitm_frame.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
     # Attack Logic
     def start_attack(self):
@@ -142,8 +160,16 @@ class AttackGUI:
 
             # MITM
             else:
-                self.log("Starting SSL stripping (MITM)...")
-                # TODO: Call MITM implementation
+                victim = self.mitm_victim_entry.get().strip() or None
+                server_ip = self.mitm_server_entry.get().strip() or None
+                use_ssl = self.ssl_var.get()
+
+                self.log("Starting MITM attack:")
+                self.log(f"  Victim IP:  {victim}")
+                self.log(f"  Server IP:  {server_ip}")
+                self.log(f"  SSL Strip:  {use_ssl}")
+
+                # TODO: call MITM function
 
         threading.Thread(target=worker, daemon=True).start()
 

