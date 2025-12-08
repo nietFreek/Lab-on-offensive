@@ -1,6 +1,4 @@
 import scapy.all as sc;
-import time;
-import ipaddress;
 
 def dns_spoofing(domain, spoof_ip):
     iface = ""
