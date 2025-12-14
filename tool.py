@@ -39,12 +39,12 @@ class AttackGUI:
         self.spoof_entry.grid(row=3, column=1, padx=5, pady=3)
         self.spoof_entry.insert(0, self.get_attacker_mac())
 
-        tk.Label(self.arp_frame, text="Spoof As IP:").grid(row=3, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.arp_frame, text="Spoof As IP:").grid(row=4, column=0, sticky="e", padx=5, pady=3)
         self.spoof_ip_entry = tk.Entry(self.arp_frame, width=23)
         self.spoof_ip_entry.grid(row=3, column=1, padx=5, pady=3)
         self.spoof_ip_entry.insert(0, self.get_attacker_mac())\
         
-        tk.Label(self.arp_frame, text="Spoof As IPv6:").grid(row=3, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.arp_frame, text="Spoof As IPv6:").grid(row=5, column=0, sticky="e", padx=5, pady=3)
         self.spoof_ipv6_entry = tk.Entry(self.arp_frame, width=23)
         self.spoof_ipv6_entry.grid(row=3, column=1, padx=5, pady=3)
         self.spoof_ipv6_entry.insert(0, self.get_attacker_mac())
