@@ -1,9 +1,11 @@
 import tkinter as tk
 from tkinter import scrolledtext, ttk
-import Arp_poisening
+from Arp_poisening import ARPPoisoner
 import uuid
 import threading
 import Dns_spoofing
+import scapy.all as sc
+from mitm_handler import MitmHandler
 
 
 class AttackGUI:
@@ -36,6 +38,16 @@ class AttackGUI:
         self.spoof_entry = tk.Entry(self.arp_frame, width=23)
         self.spoof_entry.grid(row=3, column=1, padx=5, pady=3)
         self.spoof_entry.insert(0, self.get_attacker_mac())
+
+        tk.Label(self.arp_frame, text="Spoof As IP:").grid(row=4, column=0, sticky="e", padx=5, pady=3)
+        self.spoof_ip_entry = tk.Entry(self.arp_frame, width=23)
+        self.spoof_ip_entry.grid(row=3, column=1, padx=5, pady=3)
+        self.spoof_ip_entry.insert(0, self.get_attacker_mac())\
+        
+        tk.Label(self.arp_frame, text="Spoof As IPv6:").grid(row=5, column=0, sticky="e", padx=5, pady=3)
+        self.spoof_ipv6_entry = tk.Entry(self.arp_frame, width=23)
+        self.spoof_ipv6_entry.grid(row=3, column=1, padx=5, pady=3)
+        self.spoof_ipv6_entry.insert(0, self.get_attacker_mac())
 
         # DNS options
         self.dns_frame = tk.Frame(root)
@@ -131,6 +143,8 @@ class AttackGUI:
                 victim = self.victim_entry.get().strip() or None
                 server_ip = self.arp_server_entry.get().strip()
                 spoof_mac = self.spoof_entry.get().strip()
+                spoof_ip = self.spoof_ip_entry.get().strip()
+                spoof_ip_v6 = self.spoof_ipv6_entry.get().strip()
                 mode = self.arp_mode.get()
 
                 self.log("Starting ARP poisoning:")
@@ -139,13 +153,13 @@ class AttackGUI:
                 self.log(f"  Mode:      {mode}")
                 self.log(f"  Spoof As:  {spoof_mac}")
 
-                Arp_poisening.arp_poisoning(
-                    victim,
-                    server_ip=server_ip,
-                    spoof_as_mac=spoof_mac,
-                    mode=mode,
-                    logger=self.log
-                )
+                # To Do automatically figure out gateway here?
+                # To Do get own IP / IPv6 and MAC automatically?
+                mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim, spoof_mac, spoof_ip, spoof_ip_v6, self.log)
+                spoofer = ARPPoisoner(sc.conf.iface, victim, server_ip, spoof_mac, self.log)
+
+                mitm_handler.start()
+                spoofer.start()
 
             # DNS SPOOFING
             elif attack == "DNS Spoofing":
