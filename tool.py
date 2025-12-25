@@ -7,6 +7,7 @@ import Dns_spoofing
 import scapy.all as sc
 from mitm_handler import MitmHandler
 from SSLFilter import SSLStripFilter
+import subprocess
 
 
 class AttackGUI:
@@ -43,12 +44,10 @@ class AttackGUI:
         tk.Label(self.arp_frame, text="Spoof As IP:").grid(row=4, column=0, sticky="e", padx=5, pady=3)
         self.spoof_ip_entry = tk.Entry(self.arp_frame, width=23)
         self.spoof_ip_entry.grid(row=3, column=1, padx=5, pady=3)
-        self.spoof_ip_entry.insert(0, self.get_attacker_mac())\
         
         tk.Label(self.arp_frame, text="Spoof As IPv6:").grid(row=5, column=0, sticky="e", padx=5, pady=3)
         self.spoof_ipv6_entry = tk.Entry(self.arp_frame, width=23)
         self.spoof_ipv6_entry.grid(row=3, column=1, padx=5, pady=3)
-        self.spoof_ipv6_entry.insert(0, self.get_attacker_mac())
 
         # DNS options
         self.dns_frame = tk.Frame(root)
@@ -57,17 +56,27 @@ class AttackGUI:
         self.dns_victim_entry = tk.Entry(self.dns_frame, width=23)
         self.dns_victim_entry.grid(row=0, column=1, padx=5, pady=3)
 
-        tk.Label(self.dns_frame, text="Domain to Spoof:").grid(row=1, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.dns_frame, text="DNS Server IP:").grid(row=1, column=0, sticky="e", padx=5, pady=3)
+        self.dns_server_entry = tk.Entry(self.dns_frame, width=23)
+        self.dns_server_entry.grid(row=1, column=1, padx=5, pady=3)
+
+        tk.Label(self.dns_frame, text="Domain to Spoof:").grid(row=2, column=0, sticky="e", padx=5, pady=3)
         self.dns_domain_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_domain_entry.grid(row=1, column=1, padx=5, pady=3)
+        self.dns_domain_entry.grid(row=2, column=1, padx=5, pady=3)
 
-        tk.Label(self.dns_frame, text="Spoof IPv4:").grid(row=2, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.dns_frame, text="Spoof IPv4:").grid(row=3, column=0, sticky="e", padx=5, pady=3)
         self.dns_spoof_ip_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_spoof_ip_entry.grid(row=2, column=1, padx=5, pady=3)
+        self.dns_spoof_ip_entry.grid(row=3, column=1, padx=5, pady=3)
 
-        tk.Label(self.dns_frame, text="Spoof IPv6 (optional):").grid(row=3, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.dns_frame, text="Spoof IPv6 (optional):").grid(row=4, column=0, sticky="e", padx=5, pady=3)
         self.dns_spoof_ipv6_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_spoof_ipv6_entry.grid(row=3, column=1, padx=5, pady=3)
+        self.dns_spoof_ipv6_entry.grid(row=4, column=1, padx=5, pady=3)
+
+        tk.Label(self.dns_frame, text="Spoof As MAC:").grid(row=5, column=0, sticky="e", padx=5, pady=3)
+        self.spoof_entry_dns = tk.Entry(self.dns_frame, width=23)
+        self.spoof_entry_dns.grid(row=5, column=1, padx=5, pady=3)
+        self.spoof_entry_dns.insert(0, self.get_attacker_mac())
+
 
 
         # MITM options
@@ -112,6 +121,7 @@ class AttackGUI:
         self.log_area.grid(row=4, column=0, columnspan=2, padx=5, pady=5)
 
         self.update_attack_options()
+        self.autofill_network_info()
 
     # Utility
     def log(self, text):
@@ -126,6 +136,95 @@ class AttackGUI:
             return ':'.join(f'{(mac >> ele) & 0xff:02x}' for ele in range(40, -1, -8))
         except:
             return "00:00:00:00:00:00"
+        
+        
+    def autofill_network_info(self):
+        iface = self.get_active_interface()
+        iface = self.iface_to_name(iface)
+
+        gateway_ip = self.get_gateway_ipv4()
+        ipv4 = self.get_own_ipv4(iface)
+        ipv6 = self.get_own_ipv6(iface)
+
+        # ARP / MITM
+        self.arp_server_entry.delete(0, tk.END)
+        self.arp_server_entry.insert(0, gateway_ip)
+
+        self.spoof_ip_entry.delete(0, tk.END)
+        self.spoof_ip_entry.insert(0, ipv4)
+
+        self.spoof_ipv6_entry.delete(0, tk.END)
+        self.spoof_ipv6_entry.insert(0, ipv6)
+
+        # DNS
+        self.dns_server_entry.delete(0, tk.END)
+        self.dns_server_entry.insert(0, gateway_ip)
+
+        self.dns_spoof_ip_entry.delete(0, tk.END)
+        self.dns_spoof_ip_entry.insert(0, ipv4)
+
+        self.dns_spoof_ipv6_entry.delete(0, tk.END)
+        self.dns_spoof_ipv6_entry.insert(0, ipv6)
+
+    def get_gateway_ipv4(self):
+        try:
+            output = subprocess.check_output(
+                ["ip", "route", "show", "default"],
+                text=True
+            )
+            return output.split()[2]
+        except Exception as e:
+            self.log(f"Failed fetching gateway ipv4 {e}")
+            return ""
+        
+    def get_active_interface(self):
+        iface = sc.conf.iface
+        if iface:
+            return iface
+        try:
+            return sc.get_working_if().name
+        except Exception:
+            return ""
+
+
+    def iface_to_name(self, iface):
+        if iface is None:
+            return ""
+        if isinstance(iface, str):
+            return iface
+        if hasattr(iface, "name"):
+            return iface.name
+        return str(iface)
+
+    def get_own_ipv4(self, interface):
+        try:
+            output = subprocess.check_output(
+                ["ip", "-4", "addr", "show", interface],
+                text=True
+            )
+            for line in output.splitlines():
+                line = line.strip()
+                if line.startswith("inet "):
+                    return line.split()[1].split("/")[0]
+        except Exception as e:
+            self.log(f"Failed fetching own ipv4 {e}")
+            pass
+        return ""
+    
+    def get_own_ipv6(self, interface):
+        try:
+            output = subprocess.check_output(
+                ["ip", "-6", "addr", "show", interface],
+                text=True
+            )
+            for line in output.splitlines():
+                line = line.strip()
+                if line.startswith("inet6 ") and "scope global" in line:
+                    return line.split()[1].split("/")[0]
+        except Exception as e:
+            self.log(f"Failed fetching own ipv6 {e}")
+            pass
+        return ""
 
     def update_attack_options(self, event=None):
         self.arp_frame.grid_forget()
@@ -174,9 +273,11 @@ class AttackGUI:
             # DNS SPOOFING
             elif attack == "DNS Spoofing":
                 victim_ip = self.dns_victim_entry.get().strip()
+                server_ip = self.dns_server_entry.get().strip()
                 domain = self.dns_domain_entry.get().strip().lower()
                 spoof_ip = self.dns_spoof_ip_entry.get().strip()
                 spoof_ipv6 = self.dns_spoof_ipv6_entry.get().strip() or None
+                spoof_mac = self.spoof_entry_dns.get().strip()
 
                 if not victim_ip or not domain or not spoof_ip:
                     self.log("DNS spoofing error: missing required fields")
@@ -199,10 +300,13 @@ class AttackGUI:
                     logger=self.log
                 )
                 
-                mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim, spoof_mac, spoof_ip, spoof_ip_v6, self.log)
+                arp_poisoner = ARPPoisoner(sc.conf.iface, victim_ip, server_ip, spoof_mac, self.log)
+
+                mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim_ip, spoof_mac, spoof_ip, spoof_ipv6, self.log)
                 mitm_handler.add_filter(spoofer._dns_filter)
                 mitm_handler.start()
                 spoofer.start()
+                arp_poisoner.start()
 
             # MITM
             else:

