@@ -1,0 +1,40 @@
+Yo everyone, just pushed some updates to the SSL stripping stuff.
+
+So basically, the old setup was trying to grab port 443 directly, which was a total fail because the browser expects encryption and just freaks out if we send it plain HTTP.
+
+I rewrote the SSLFilter to do it the classic way:
+
+1. We intercept port 80 (HTTP) instead of 443.
+2. When the victim asks for a site, we proxy that request to the real server for them.
+3. If the server tries to redirect them to HTTPS, we catch that, rewrite the header back to HTTP, and keep them on plaintext without them knowing.
+4. We also scan the response body and swap any https links to http so they don't accidentally upgrade themselves.
+
+Also cleaned up mitm_handler.py to let the filter handle the connections properly instead of trying to do a manual handshake in the main loop which was messy.
+
+Here is what I actually changed in the files:
+
+mitm_handler.py:
+1. Added the ARPPoisoner setup in init so we actually spoof the gateway now.
+2. Made sure the ARP poisoner starts and stops when the handler does.
+3. Fixed a bug in packet_forwarder where it was looking for target_ips which didn't even exist, and made it forward to our upstream MAC properly.
+
+SSLFilter:
+1. Rewrote pretty much the whole thing.
+2. Changed it to catch Port 80 traffic.
+3. Added all the logic to handle the proxying and rewriting.
+
+It should be way more robust now!
+
+Also, here is where we are at with the TCP handshake in SSLFilter.py:
+
+What is working:
+1. We are catching SYN packets on Port 80.
+2. We are sending SYN-ACK replies to the victim to get the connection going.
+3. We are tracking the session state like sequence numbers.
+4. We are finishing the 3-way handshake on the client side.
+5. We are lazy-loading the server connection, so we only open the socket when we actually get data.
+
+What is missing / To Do:
+1. We are ignoring FIN/RST packets right now, so connections might hang.
+2. No logic for retransmissions yet, so duplicate packets might mess things up.
+3. No support for TCP Options like MSS or Window Scaling.
