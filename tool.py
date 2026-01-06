@@ -54,6 +54,10 @@ class AttackGUI:
         # DNS options
         self.dns_frame = tk.Frame(root)
 
+        tk.Label(self.dns_frame, text="Victim IP:").grid(row=0, column=0, sticky="e", padx=5, pady=3)
+        self.dns_victim_entry = tk.Entry(self.dns_frame, width=23)
+        self.dns_victim_entry.grid(row=0, column=1, padx=5, pady=3)
+
         tk.Label(self.dns_frame, text="Domain to Spoof:").grid(row=2, column=0, sticky="e", padx=5, pady=3)
         self.dns_domain_entry = tk.Entry(self.dns_frame, width=23)
         self.dns_domain_entry.grid(row=2, column=1, padx=5, pady=3)
@@ -253,6 +257,7 @@ class AttackGUI:
 
             # DNS SPOOFING
             elif attack == "DNS Spoofing":
+                victim_ip = self.dns_victim_entry.get().strip()
                 domain = self.dns_domain_entry.get().strip().lower()
                 spoof_ip = self.dns_spoof_ip_entry.get().strip()
                 spoof_ipv6 = self.dns_spoof_ipv6_entry.get().strip() or None
