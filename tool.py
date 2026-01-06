@@ -278,9 +278,6 @@ class AttackGUI:
                     spoof_ipv6=spoof_ipv6,
                     logger=self.log
                 )
-
-                mitm_handler.add_filter(tracker)   # learn DNS
-                mitm_handler.add_filter(redirect)
                 
                 arp_poisoner = ARPPoisoner(sc.conf.iface, victim_ip, server_ip, spoof_mac, self.log)
 
