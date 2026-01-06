@@ -66,8 +66,6 @@ class AttackGUI:
         self.dns_spoof_ipv6_entry = tk.Entry(self.dns_frame, width=23)
         self.dns_spoof_ipv6_entry.grid(row=4, column=1, padx=5, pady=3)
 
-
-
         # MITM options
         self.mitm_frame = tk.Frame(root)
 
@@ -146,9 +144,6 @@ class AttackGUI:
         self.spoof_ipv6_entry.insert(0, ipv6)
 
         # DNS
-        self.dns_server_entry.delete(0, tk.END)
-        self.dns_server_entry.insert(0, gateway_ip)
-
         self.dns_spoof_ip_entry.delete(0, tk.END)
         self.dns_spoof_ip_entry.insert(0, ipv4)
 
@@ -264,19 +259,15 @@ class AttackGUI:
 
             # DNS SPOOFING
             elif attack == "DNS Spoofing":
-                victim_ip = self.dns_victim_entry.get().strip()
-                server_ip = self.dns_server_entry.get().strip()
                 domain = self.dns_domain_entry.get().strip().lower()
                 spoof_ip = self.dns_spoof_ip_entry.get().strip()
                 spoof_ipv6 = self.dns_spoof_ipv6_entry.get().strip() or None
-                spoof_mac = self.spoof_entry_dns.get().strip()
 
-                if not victim_ip or not domain or not spoof_ip:
+                if not domain or not spoof_ip:
                     self.log("DNS spoofing error: missing required fields")
                     return
 
                 self.log("Starting DNS spoofing:")
-                self.log(f"  Victim IP: {victim_ip}")
                 self.log(f"  Domain:    {domain}")
                 self.log(f"  IPv4:      {spoof_ip}")
                 self.log(f"  IPv6:      {spoof_ipv6 or 'disabled'}")
