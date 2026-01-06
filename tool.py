@@ -152,6 +152,7 @@ class AttackGUI:
         self.attacker_ipv6 = ipv6
 
         self.dns_server_entry = gateway_ip
+        self.spoof_entry_dns = self.get_attacker_mac
 
     def get_gateway_ipv4(self):
         try:
@@ -261,6 +262,7 @@ class AttackGUI:
             elif attack == "DNS Spoofing":
                 victim_ip = self.dns_victim_entry.get().strip()
                 server_ip = self.dns_server_entry
+                spoof_mac = self.spoof_entry_dns
                 domain = self.dns_domain_entry.get().strip().lower()
                 spoof_ip = self.dns_spoof_ip_entry.get().strip()
                 spoof_ipv6 = self.dns_spoof_ipv6_entry.get().strip() or None
