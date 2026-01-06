@@ -144,12 +144,6 @@ class AttackGUI:
         self.spoof_ipv6_entry.insert(0, ipv6)
 
         # DNS
-        self.dns_spoof_ip_entry.delete(0, tk.END)
-        self.dns_spoof_ip_entry.insert(0, ipv4)
-
-        self.dns_spoof_ipv6_entry.delete(0, tk.END)
-        self.dns_spoof_ipv6_entry.insert(0, ipv6)
-
         self.attacker_ipv4 = ipv4
         self.attacker_ipv6 = ipv6
 
