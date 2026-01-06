@@ -54,14 +54,6 @@ class AttackGUI:
         # DNS options
         self.dns_frame = tk.Frame(root)
 
-        tk.Label(self.dns_frame, text="Victim IP:").grid(row=0, column=0, sticky="e", padx=5, pady=3)
-        self.dns_victim_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_victim_entry.grid(row=0, column=1, padx=5, pady=3)
-
-        tk.Label(self.dns_frame, text="DNS Server IP:").grid(row=1, column=0, sticky="e", padx=5, pady=3)
-        self.dns_server_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_server_entry.grid(row=1, column=1, padx=5, pady=3)
-
         tk.Label(self.dns_frame, text="Domain to Spoof:").grid(row=2, column=0, sticky="e", padx=5, pady=3)
         self.dns_domain_entry = tk.Entry(self.dns_frame, width=23)
         self.dns_domain_entry.grid(row=2, column=1, padx=5, pady=3)
@@ -74,10 +66,6 @@ class AttackGUI:
         self.dns_spoof_ipv6_entry = tk.Entry(self.dns_frame, width=23)
         self.dns_spoof_ipv6_entry.grid(row=4, column=1, padx=5, pady=3)
 
-        tk.Label(self.dns_frame, text="Spoof As MAC:").grid(row=5, column=0, sticky="e", padx=5, pady=3)
-        self.spoof_entry_dns = tk.Entry(self.dns_frame, width=23)
-        self.spoof_entry_dns.grid(row=5, column=1, padx=5, pady=3)
-        self.spoof_entry_dns.insert(0, self.get_attacker_mac())
 
 
         # MITM options
