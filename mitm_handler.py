@@ -125,7 +125,14 @@ class MitmHandler:
             else:
                 return
 
-            sc.sendp(ether / ip_pkt, iface=self.interface, verbose=False)
+            frags = sc.fragment(ip_pkt, fragsize=1480)
+
+            for frag in frags:
+                sc.sendp(
+                    ether / frag,
+                    iface=self.interface,
+                    verbose=False
+                )
 
         except Exception as e:
             self.logger(f"MITM Handler exception: {e}")
