@@ -291,7 +291,6 @@ class AttackGUI:
                 mitm_handler.add_filter(tracker)
                 mitm_handler.add_filter(redirect)
                 mitm_handler.start()
-                spoofer.start()
                 arp_poisoner.start()
 
             # MITM
