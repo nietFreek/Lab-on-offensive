@@ -3,10 +3,10 @@ from tkinter import scrolledtext, ttk
 from Arp_poisening import ARPPoisoner
 import uuid
 import threading
-import DNSDomainTracker
 import Dns_spoofing
 import scapy.all as sc
-import DomainRedirectFilter
+from DNSDomainTracker import DNSDomainTracker
+from DomainRedirectFilter import DomainRedirectFilter
 from mitm_handler import MitmHandler
 from SSLFilter import SSLStripFilter
 import subprocess
