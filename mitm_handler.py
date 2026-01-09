@@ -77,6 +77,9 @@ class MitmHandler:
         # Do not handle these packets.
         if not packet.haslayer(IP):
             return
+        ip = packet[IP]
+        if ip.src == self.attacker_ip:
+            return
         if packet.haslayer(Ether) and packet[Ether].src == self.attacker_mac:
             return
         
