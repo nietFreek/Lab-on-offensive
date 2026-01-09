@@ -2,7 +2,7 @@ from scapy.all import IP, TCP, UDP
 from scapy.layers.inet6 import IPv6
 
 class DomainRedirectFilter:
-    def __init__(self, domain_tracker, attacker_ip, spoof_ip, logger=None):
+    def __init__(self, domain_tracker, spoof_ip, attacker_ip, logger=None):
         self.domain_tracker = domain_tracker
         self.attacker_ip = attacker_ip
         self.spoof_ip = spoof_ip
