@@ -66,7 +66,7 @@ class MitmHandler:
                 iface=self.interface,
                 prn=self.packet_handler,
                 # Create a filter that says the packets are not coming from us, and also create a filter that the packets come from / go to the victim.
-                filter=f"ether src not {self.attacker_mac}",
+                filter="",
                 store=0,
                 stop_filter=lambda _: not self.running
             )
