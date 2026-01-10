@@ -63,14 +63,6 @@ class AttackGUI:
         self.dns_domain_entry = tk.Entry(self.dns_frame, width=23)
         self.dns_domain_entry.grid(row=2, column=1, padx=5, pady=3)
 
-        tk.Label(self.dns_frame, text="Spoof IPv4:").grid(row=3, column=0, sticky="e", padx=5, pady=3)
-        self.dns_spoof_ip_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_spoof_ip_entry.grid(row=3, column=1, padx=5, pady=3)
-
-        tk.Label(self.dns_frame, text="Spoof IPv6 (optional):").grid(row=4, column=0, sticky="e", padx=5, pady=3)
-        self.dns_spoof_ipv6_entry = tk.Entry(self.dns_frame, width=23)
-        self.dns_spoof_ipv6_entry.grid(row=4, column=1, padx=5, pady=3)
-
         # MITM options
         self.mitm_frame = tk.Frame(root)
 
