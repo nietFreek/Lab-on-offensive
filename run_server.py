@@ -11,6 +11,7 @@ class SimpleHandler(http.server.SimpleHTTPRequestHandler):
         html = """
         <html>
             <head><title>Website on a HTTP Server</title></head>
+            <body><h1>You just got DNS spoofed!</h1></body>
         </html>
         """
         self.wfile.write(html.encode("utf-8"))
