@@ -75,4 +75,4 @@ class DNSSpoofer:
         )
 
         send(reply, iface=self.interface, verbose=0)
-        self.log(f"[DNS] Spoofed {qname.decode().rstrip('.')} → {rdata}")
+        self.logger(f"[DNS] Spoofed {qname.decode().rstrip('.')} → {rdata}")
