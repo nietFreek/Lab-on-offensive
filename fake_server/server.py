@@ -162,9 +162,17 @@ def run_https_server():
 
 def run_http_redirect_server():
     server_address = ('0.0.0.0', HTTP_PORT)
-    httpd = HTTPServer(server_address, RedirectHandler)
+    # Use SafeThreadingHTTPServer here too to prevent crashes
+    try:
+        httpd = SafeThreadingHTTPServer(server_address, RedirectHandler)
+    except:
+        httpd = HTTPServer(server_address, RedirectHandler)
+
     print(f"HTTP Redirect Server running on http://0.0.0.0:{HTTP_PORT}")
-    httpd.serve_forever()
+    try:
+        httpd.serve_forever()
+    except Exception as e:
+        print(f"[CRITICAL] HTTP Server crashed: {e}")
 
 if __name__ == '__main__':
     print("Starting Fake Server infrastructure...")
