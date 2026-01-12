@@ -114,6 +114,7 @@ def run_http_redirect_server():
 
 if __name__ == '__main__':
     print("Starting Fake Server infrastructure...")
+    print("Ensure you add '10.0.0.182 mybank.local' to your hosts file on the victim machine!")
 
     # Start HTTP Redirector in a separate thread
     t_http = threading.Thread(target=run_http_redirect_server, daemon=True)

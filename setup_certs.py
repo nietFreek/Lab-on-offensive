@@ -5,6 +5,7 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
+from ipaddress import ip_address
 import datetime
 
 def generate_self_signed_cert():
@@ -20,7 +21,7 @@ def generate_self_signed_cert():
         x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"California"),
         x509.NameAttribute(NameOID.LOCALITY_NAME, u"San Francisco"),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, u"My Company"),
-        x509.NameAttribute(NameOID.COMMON_NAME, u"localhost"),
+        x509.NameAttribute(NameOID.COMMON_NAME, u"mybank.local"),
     ])
     
     # Use timezone-aware datetime
@@ -39,7 +40,7 @@ def generate_self_signed_cert():
     ).not_valid_after(
         now + datetime.timedelta(days=365)
     ).add_extension(
-        x509.SubjectAlternativeName([x509.DNSName(u"localhost")]),
+        x509.SubjectAlternativeName([x509.DNSName(u"mybank.local")]),
         critical=False,
     ).sign(key, hashes.SHA256())
 
