@@ -89,7 +89,7 @@ class MitmHandler:
                     forward_packet = False
                     break
             except Exception as e:
-                self.logger(f"{e}")
+                self.logger(f"exception from filter: {e}")
 
         if forward_packet:
             self.packet_forwarder(packet)
@@ -141,4 +141,5 @@ class MitmHandler:
                 sc.sendp(final_pkt, iface=self.interface, verbose=False)
 
         except Exception as e:
-            self.logger(f"MITM Handler exception: {e}")
+            # self.logger(f"MITM Handler exception: {e}")
+            return

