@@ -27,16 +27,6 @@ class AttackGUI:
         self.arp_server_entry = tk.Entry(self.arp_frame, width=23)
         self.arp_server_entry.grid(row=1, column=1, padx=5, pady=3)
 
-        tk.Label(self.arp_frame, text="ARP Mode:").grid(row=2, column=0, sticky="e", padx=5, pady=3)
-        self.arp_mode = ttk.Combobox(
-            self.arp_frame,
-            values=["silent", "all-out"],
-            state="readonly",
-            width=20
-        )
-        self.arp_mode.grid(row=2, column=1, padx=5, pady=3)
-        self.arp_mode.current(1)
-
         tk.Label(self.arp_frame, text="Spoof As MAC:").grid(row=3, column=0, sticky="e", padx=5, pady=3)
         self.spoof_entry = tk.Entry(self.arp_frame, width=23)
         self.spoof_entry.grid(row=3, column=1, padx=5, pady=3)
@@ -230,12 +220,10 @@ class AttackGUI:
                 spoof_mac = self.spoof_entry.get().strip()
                 spoof_ip = self.spoof_ip_entry.get().strip()
                 spoof_ip_v6 = self.spoof_ipv6_entry.get().strip()
-                mode = self.arp_mode.get()
 
                 self.log("Starting ARP poisoning:")
                 self.log(f"  Victim:    {victim}")
                 self.log(f"  Server:    {server_ip}")
-                self.log(f"  Mode:      {mode}")
                 self.log(f"  Spoof As:  {spoof_mac}")
 
                 # To Do automatically figure out gateway here?
