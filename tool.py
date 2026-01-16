@@ -19,11 +19,11 @@ class AttackGUI:
         # ARP options
         self.arp_frame = tk.Frame(root)
 
-        tk.Label(self.arp_frame, text="Victim IP: (Optional)").grid(row=0, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.arp_frame, text="Victim IP: ").grid(row=0, column=0, sticky="e", padx=5, pady=3)
         self.victim_entry = tk.Entry(self.arp_frame, width=23)
         self.victim_entry.grid(row=0, column=1, padx=5, pady=3)
 
-        tk.Label(self.arp_frame, text="Server IP: (Optional)").grid(row=1, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.arp_frame, text="Server IP: ").grid(row=1, column=0, sticky="e", padx=5, pady=3)
         self.arp_server_entry = tk.Entry(self.arp_frame, width=23)
         self.arp_server_entry.grid(row=1, column=1, padx=5, pady=3)
 
@@ -64,11 +64,11 @@ class AttackGUI:
         # MITM options
         self.mitm_frame = tk.Frame(root)
 
-        tk.Label(self.mitm_frame, text="Victim IP: (optional)").grid(row=0, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.mitm_frame, text="Victim IP: ").grid(row=0, column=0, sticky="e", padx=5, pady=3)
         self.mitm_victim_entry = tk.Entry(self.mitm_frame, width=23)
         self.mitm_victim_entry.grid(row=0, column=1, padx=5, pady=3)
 
-        tk.Label(self.mitm_frame, text="Server IP: (optional)").grid(row=1, column=0, sticky="e", padx=5, pady=3)
+        tk.Label(self.mitm_frame, text="Server IP: ").grid(row=1, column=0, sticky="e", padx=5, pady=3)
         self.mitm_server_entry = tk.Entry(self.mitm_frame, width=23)
         self.mitm_server_entry.grid(row=1, column=1, padx=5, pady=3)
 
